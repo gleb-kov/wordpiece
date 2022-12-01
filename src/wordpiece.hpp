@@ -3,15 +3,12 @@
 
 #include <bits/stdc++.h>
 
-using namespace std;
-
-namespace SufArray3n {
+namespace suf_array3n {
 inline bool leq(int a1, int a2, int b1, int b2) { return (a1 < b1 || (a1 == b1 && a2 <= b2)); }
 
-// and triples
 inline bool leq(int a1, int a2, int a3, int b1, int b2, int b3) {
     return (a1 < b1 || (a1 == b1 && leq(a2, a3, b2, b3)));
-} // and triples
+}
 
 // stably sort a[0..n-1] to b[0..n-1] with keys in 0..K from r
 inline void radixPass(int *a, int *b, int *r, int n, int K) { // count occurrences
@@ -111,21 +108,27 @@ inline void suffixArray(int *s, int *SA, int n, int K) {
 }
 } // namespace SufArray3n
 
-inline vector<int> calc_lcp(int *suf_a, const int *s, int n) {
-    vector<int> obr(n), mas(n);
-    for (int i = 0; i < n; i++)
+inline std::vector<int> calcLcp(int *suf_a, const int *s, int n) {
+    std::vector<int> obr(n);
+    std::vector<int> mas(n);
+    for (int i = 0; i < n; i++) {
         obr[suf_a[i]] = i;
+    }
     int k = 0;
-    for (int i = 0; i < n; i++)
-        if (obr[i] == n - 1)
+    for (int i = 0; i < n; i++) {
+        if (obr[i] == n - 1) {
             mas[n - 1] = -1;
-        else {
-            while (max(i + k, suf_a[obr[i] + 1] + k) < n && s[i + k] == s[suf_a[obr[i] + 1] + k])
+        } else {
+            while (std::max(i + k, suf_a[obr[i] + 1] + k) < n
+                   && s[i + k] == s[suf_a[obr[i] + 1] + k]) {
                 k++;
+            }
             mas[obr[i]] = k;
-            if (k > 0)
+            if (k > 0) {
                 k--;
+            }
         }
+    }
     mas.pop_back();
     return mas;
 }
@@ -133,88 +136,95 @@ inline vector<int> calc_lcp(int *suf_a, const int *s, int n) {
 // requires ts to have distinct strings
 // if s=(t_i1, t_i2, .. t_ik) returns (i1, i2, .. ik)
 // returns {} if greedy fails
-inline vector<int> get(string s, vector<string> ts) {
-    if (s.empty() || ts.empty())
+inline std::vector<int> get(const std::string &s, const std::vector<std::string> &ts) {
+    if (s.empty()) {
         return {};
-    // must be distinct
-    {
-        unordered_set<string> tss{ts.begin(), ts.end()};
-        assert(tss.size() == ts.size());
     }
     int total_length = s.size() + 1;
-    for (auto &t : ts)
+    for (const auto &t : ts) {
         total_length += t.size() + 1;
+    }
     int *S = new int[total_length + 3];
     int *suf = new int[total_length + 3];
     // elements of s and ts must be > 1, so for example use c - 'a' + 2
     int pos = 0;
-    for (char c : s)
+    for (char c : s) {
         S[pos++] = c - 'a' + 2;
+    }
     S[pos++] = 1;
-    vector<int> ts_start_pos;
+    std::vector<int> ts_start_pos;
     ts_start_pos.reserve(ts.size());
-    for (auto &t : ts) {
+    for (const auto &t : ts) {
         ts_start_pos.emplace_back(pos);
-        for (char c : t)
+        for (char c : t) {
             S[pos++] = c - 'a' + 2;
+        }
         S[pos++] = 1;
     }
     assert(pos == total_length);
     int AL = 1;
-    for (int i = 0; i < pos; i++)
-        AL = max(AL, S[i]);
+    for (int i = 0; i < pos; i++) {
+        AL = std::max(AL, S[i]);
+    }
     S[pos] = S[pos + 1] = S[pos + 2] = 0;
-    SufArray3n::suffixArray(S, suf, total_length, AL);
-    auto lcp = calc_lcp(suf, S, pos);
-    vector<int> who(pos, -1);
-    vector<int> ob(pos);
-    for (int i = 0; i < pos; i++)
+    suf_array3n::suffixArray(S, suf, total_length, AL);
+    auto lcp = calcLcp(suf, S, pos);
+    std::vector<int> who(pos, -1);
+    std::vector<int> ob(pos);
+    for (int i = 0; i < pos; i++) {
         ob[suf[i]] = i;
+    }
     for (int i = 0; i < static_cast<int64_t>(ts.size()); i++) {
         who[ob[ts_start_pos[i]]] = i;
     }
     auto get_closest = [&lcp, &who, &pos, &ts]() {
-        vector<int> res(pos, -1);
+        std::vector<int> res(pos, -1);
         // (i, |i|); i is index in ts
-        vector<pair<int, int>> st;
+        std::vector<std::pair<int, int>> st;
         for (int i = 0; i < pos; i++) {
             if (i > 0) {
                 int val = lcp[i - 1];
-                while (!st.empty() && st.back().second > val)
+                while (!st.empty() && st.back().second > val) {
                     st.pop_back();
+                }
             }
             if (who[i] != -1) {
-                pair<int, int> val = {who[i], ts[who[i]].size()};
-                if (!st.empty())
+                std::pair<int, int> val = {who[i], ts[who[i]].size()};
+                if (!st.empty()) {
                     assert(st.back().second < val.second);
+                }
                 st.emplace_back(val);
             }
-            if (!st.empty())
+            if (!st.empty()) {
                 res[i] = st.back().first;
+            }
         }
         return res;
     };
     auto L = get_closest();
-    reverse(who.begin(), who.end());
-    reverse(lcp.begin(), lcp.end());
+    std::reverse(who.begin(), who.end());
+    std::reverse(lcp.begin(), lcp.end());
     auto R = get_closest();
-    reverse(R.begin(), R.end());
-    reverse(who.begin(), who.end());
-    reverse(lcp.begin(), lcp.end());
-    vector<int> biggest(s.size(), -1);
+    std::reverse(R.begin(), R.end());
+    std::reverse(who.begin(), who.end());
+    std::reverse(lcp.begin(), lcp.end());
+    std::vector<int> biggest(s.size(), -1);
     for (int i = 0; i < static_cast<int64_t>(s.size()); i++) {
         int id = ob[i];
-        int x = L[id], y = R[id];
-        if (x == -1 || y == -1)
-            biggest[i] = max(x, y);
-        else if (ts[x].size() > ts[y].size())
+        int x = L[id];
+        int y = R[id];
+        if (x == -1 || y == -1) {
+            biggest[i] = std::max(x, y);
+        } else if (ts[x].size() > ts[y].size()) {
             biggest[i] = x;
-        else
+        } else {
             biggest[i] = y;
+        }
     }
     delete[] S;
     delete[] suf;
-    vector<int> answer;
+
+    std::vector<int> answer;
     int cur = 0;
     while (cur < static_cast<int64_t>(s.size())) {
         if (biggest[cur] == -1) {
@@ -227,6 +237,11 @@ inline vector<int> get(string s, vector<string> ts) {
     }
     assert(cur == static_cast<int64_t>(s.size()));
     return answer;
+}
+
+inline bool verifyVocab(const std::vector<std::string> &vocab) {
+    std::unordered_set<std::string> vocab_set{vocab.begin(), vocab.end()};
+    return !vocab.empty() && vocab.size() == vocab_set.size();
 }
 
 #endif // WORDPIECE_H

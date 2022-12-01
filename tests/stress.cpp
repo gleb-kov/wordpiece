@@ -41,6 +41,7 @@ std::vector<int> naiveTokenization(const std::string &s, const std::vector<std::
 }
 
 void compare(const std::string &s, const std::vector<std::string> &vocab, bool print_perf = false) {
+    assert(verifyVocab(vocab));
     auto start = currentTs();
     std::vector<int> fast = get(s, vocab);
     auto between = currentTs();
@@ -123,8 +124,8 @@ TEST(Stress, RandomSplitNegative) {
 
 TEST(Stress, Perf) {
     std::mt19937 rnd(17);
-    for (int str_len = 10000; str_len <= 10000; str_len += 5) {
-        for (int parts = 200; parts <= 210; parts++) {
+    for (int str_len = 5; str_len <= 40; str_len += 5) {
+        for (int parts = 2; parts <= str_len; parts++) {
             for (int i = 0; i < 3; i++) {
                 std::string sample = randomString(rnd, str_len);
                 std::vector<std::string> split = randomSplit(sample, rnd, parts);
