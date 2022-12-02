@@ -3,7 +3,14 @@
 
 #include <bits/stdc++.h>
 
+inline int64_t currentTs() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+}
+
 namespace suf_array3n {
+
 inline bool leq(int a1, int a2, int b1, int b2) { return (a1 < b1 || (a1 == b1 && a2 <= b2)); }
 
 inline bool leq(int a1, int a2, int a3, int b1, int b2, int b3) {
@@ -13,18 +20,18 @@ inline bool leq(int a1, int a2, int a3, int b1, int b2, int b3) {
 // stably sort a[0..n-1] to b[0..n-1] with keys in 0..K from r
 inline void radixPass(int *a, int *b, int *r, int n, int K) { // count occurrences
     int *c = new int[K + 1];                                  // counter array
-    for (int i = 0; i <= K; i++)
-        c[i] = 0; // reset counters
-    for (int i = 0; i < n; i++)
-        c[r[a[i]]]++;                     // count occurrences
-    for (int i = 0, sum = 0; i <= K; i++) // exclusive prefix sums
-    {
+    std::memset(c, 0, K * sizeof(int));
+    for (int i = 0; i < n; i++) {
+        c[r[a[i]]]++; // count occurrences
+    }
+    for (int i = 0, sum = 0; i <= K; i++) { // exclusive prefix sums
         int t = c[i];
         c[i] = sum;
         sum += t;
     }
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < n; i++) {
         b[c[r[a[i]]]++] = a[i]; // sort
+    }
     delete[] c;
 }
 
@@ -40,9 +47,15 @@ inline void suffixArray(int *s, int *SA, int n, int K) {
     int *SA0 = new int[n0];
     // generate positions of mod 1 and mod 2 suffixes
     // the "+(n0-n1)" adds a dummy mod 1 suffix if n%3 == 1
-    for (int i = 0, j = 0; i < n + (n0 - n1); i++)
-        if (i % 3 != 0)
+
+    // n%3==0 @ 0 + 0 = 0
+    // n%3==1 @ 1 + (1 - 0) = 2
+    // n%3==2 @ 2 + (1 - 1) = 2
+    for (int i = 0, j = 0; i < n + (n0 - n1); i++) {
+        if (i % 3 != 0) {
             s12[j++] = i;
+        }
+    }
     // lsb radix sort the mod 1 and mod 2 triples
     radixPass(s12, SA12, s + 2, n02, K);
     radixPass(SA12, s12, s + 1, n02, K);
@@ -56,24 +69,27 @@ inline void suffixArray(int *s, int *SA, int n, int K) {
             c1 = s[SA12[i] + 1];
             c2 = s[SA12[i] + 2];
         }
-        if (SA12[i] % 3 == 1)
-            s12[SA12[i] / 3] = name; // left half
-        else
-            s12[SA12[i] / 3 + n0] = name; // right half
+        int half = SA12[i] % 3 == 1 ? 0 : n0;
+        s12[SA12[i] / 3 + half] = name;
     }
     // recurse if names are not yet unique
     if (name < n02) {
         suffixArray(s12, SA12, n02, name);
         // store unique names in s12 using the suffix array
-        for (int i = 0; i < n02; i++)
+        for (int i = 0; i < n02; i++) {
             s12[SA12[i]] = i + 1;
-    } else // generate the suffix array of s12 directly
-        for (int i = 0; i < n02; i++)
+        }
+    } else { // generate the suffix array of s12 directly
+        for (int i = 0; i < n02; i++) {
             SA12[s12[i] - 1] = i;
+        }
+    }
     // stably sort the mod 0 suffixes from SA12 by their first character
-    for (int i = 0, j = 0; i < n02; i++)
-        if (SA12[i] < n0)
+    for (int i = 0, j = 0; i < n02; i++) {
+        if (SA12[i] < n0) {
             s0[j++] = 3 * SA12[i];
+        }
+    }
     radixPass(s0, SA0, s, n0, K);
     // merge sorted SA0 suffixes and sorted SA12 suffixes
     for (int p = 0, t = n0 - n1, k = 0; k < n; k++) {
@@ -90,15 +106,19 @@ inline void suffixArray(int *s, int *SA, int n, int K) {
                                s12[j / 3 + n0])) { // suffix from SA12 is smaller
             SA[k] = i;
             t++;
-            if (t == n02) // done --- only SA0 suffixes left
-                for (k++; p < n0; p++, k++)
+            if (t == n02) { // done --- only SA0 suffixes left
+                for (k++; p < n0; p++, k++) {
                     SA[k] = SA0[p];
+                }
+            }
         } else { // suffix from SA0 is smaller
             SA[k] = j;
             p++;
-            if (p == n0) // done --- only SA12 suffixes left
-                for (k++; t < n02; t++, k++)
+            if (p == n0) { // done --- only SA12 suffixes left
+                for (k++; t < n02; t++, k++) {
                     SA[k] = GetI();
+                }
+            }
         }
     }
     delete[] s12;
@@ -106,136 +126,142 @@ inline void suffixArray(int *s, int *SA, int n, int K) {
     delete[] SA0;
     delete[] s0;
 }
-} // namespace SufArray3n
 
-inline std::vector<int> calcLcp(int *suf_a, const int *s, int n) {
-    std::vector<int> obr(n);
-    std::vector<int> mas(n);
-    for (int i = 0; i < n; i++) {
-        obr[suf_a[i]] = i;
-    }
+} // namespace suf_array3n
+
+inline std::vector<int>
+calcLcp(const int *s, const int *suf_a, const std::vector<int> &suf_array_index) {
+    auto n = static_cast<int>(suf_array_index.size());
+    std::vector<int> lcp(n);
     int k = 0;
     for (int i = 0; i < n; i++) {
-        if (obr[i] == n - 1) {
-            mas[n - 1] = -1;
-        } else {
-            while (std::max(i + k, suf_a[obr[i] + 1] + k) < n
-                   && s[i + k] == s[suf_a[obr[i] + 1] + k]) {
+        if (suf_array_index[i] != n - 1) {
+            while (std::max(i + k, suf_a[suf_array_index[i] + 1] + k) < n
+                   && s[i + k] == s[suf_a[suf_array_index[i] + 1] + k]) {
                 k++;
             }
-            mas[obr[i]] = k;
+            lcp[suf_array_index[i]] = k;
             if (k > 0) {
                 k--;
             }
+        } else {
+            lcp[n - 1] = -1;
         }
     }
-    mas.pop_back();
-    return mas;
+    lcp.pop_back();
+    return lcp;
 }
 
 // requires ts to have distinct strings
 // if s=(t_i1, t_i2, .. t_ik) returns (i1, i2, .. ik)
 // returns {} if greedy fails
-inline std::vector<int> get(const std::string &s, const std::vector<std::string> &ts) {
-    if (s.empty()) {
+inline std::vector<int> maxMatch(const std::string &text, const std::vector<std::string> &vocab) {
+    if (text.empty()) {
         return {};
     }
-    int total_length = s.size() + 1;
-    for (const auto &t : ts) {
+    int longest_word_vocab = 1;
+    int total_length = text.size() + 1;
+    for (const auto &t : vocab) {
         total_length += t.size() + 1;
+        longest_word_vocab = std::max(longest_word_vocab, static_cast<int>(t.size()));
     }
     int *S = new int[total_length + 3];
-    int *suf = new int[total_length + 3];
-    // elements of s and ts must be > 1, so for example use c - 'a' + 2
-    int pos = 0;
-    for (char c : s) {
-        S[pos++] = c - 'a' + 2;
-    }
-    S[pos++] = 1;
-    std::vector<int> ts_start_pos;
-    ts_start_pos.reserve(ts.size());
-    for (const auto &t : ts) {
-        ts_start_pos.emplace_back(pos);
-        for (char c : t) {
-            S[pos++] = c - 'a' + 2;
+    int alphabet_size = 1;
+
+    {
+        // elements of s and ts must be > 1, so for example use c - 'a' + 2
+        int pos = 0;
+        for (char c : text) {
+            int alpha = c - 'a' + 2;
+            S[pos++] = alpha;
+            alphabet_size = std::max(alphabet_size, alpha);
         }
         S[pos++] = 1;
+        for (const auto &t : vocab) {
+            for (char c : t) {
+                int alpha = c - 'a' + 2;
+                S[pos++] = alpha;
+                alphabet_size = std::max(alphabet_size, alpha);
+            }
+            S[pos++] = 1;
+        }
+        assert(pos == total_length);
     }
-    assert(pos == total_length);
-    int AL = 1;
-    for (int i = 0; i < pos; i++) {
-        AL = std::max(AL, S[i]);
+
+    S[total_length] = S[total_length + 1] = S[total_length + 2] = 0;
+    // int64_t before = currentTs();
+    int *suf = new int[total_length + 3];
+    suf_array3n::suffixArray(S, suf, total_length, alphabet_size);
+    // std::cout << "sufarray built in " << currentTs() - before << '\n';
+
+    std::vector<int> suf_array_index(total_length);
+    for (int i = 0; i < total_length; i++) {
+        suf_array_index[suf[i]] = i;
     }
-    S[pos] = S[pos + 1] = S[pos + 2] = 0;
-    suf_array3n::suffixArray(S, suf, total_length, AL);
-    auto lcp = calcLcp(suf, S, pos);
-    std::vector<int> who(pos, -1);
-    std::vector<int> ob(pos);
-    for (int i = 0; i < pos; i++) {
-        ob[suf[i]] = i;
+
+    std::vector<int> lcp = calcLcp(S, suf, suf_array_index);
+    delete[] S;
+    delete[] suf;
+
+    std::vector<int> who(total_length, -1);
+
+    int vocab_start_pos = static_cast<int>(text.size()) + 1;
+    for (int i = 0; i < static_cast<int64_t>(vocab.size()); i++) {
+        who[suf_array_index[vocab_start_pos]] = i;
+        vocab_start_pos += vocab[i].size() + 1;
     }
-    for (int i = 0; i < static_cast<int64_t>(ts.size()); i++) {
-        who[ob[ts_start_pos[i]]] = i;
-    }
-    auto get_closest = [&lcp, &who, &pos, &ts]() {
-        std::vector<int> res(pos, -1);
+    auto get_closest = [&lcp, &who, total_length, longest_word_vocab, &vocab]() {
+        std::vector<int> result(total_length, -1);
         // (i, |i|); i is index in ts
         std::vector<std::pair<int, int>> st;
-        for (int i = 0; i < pos; i++) {
+        st.reserve(longest_word_vocab);
+        for (int i = 0; i < total_length; i++) {
             if (i > 0) {
-                int val = lcp[i - 1];
-                while (!st.empty() && st.back().second > val) {
+                while (!st.empty() && st.back().second > lcp[i - 1]) {
                     st.pop_back();
                 }
             }
             if (who[i] != -1) {
-                std::pair<int, int> val = {who[i], ts[who[i]].size()};
-                if (!st.empty()) {
-                    assert(st.back().second < val.second);
-                }
+                std::pair<int, int> val = {who[i], vocab[who[i]].size()};
+                assert(st.empty() || st.back().second < val.second);
                 st.emplace_back(val);
             }
             if (!st.empty()) {
-                res[i] = st.back().first;
+                result[i] = st.back().first;
             }
         }
-        return res;
+        return result;
     };
-    auto L = get_closest();
+
+    std::vector<int> L = get_closest();
     std::reverse(who.begin(), who.end());
     std::reverse(lcp.begin(), lcp.end());
-    auto R = get_closest();
-    std::reverse(R.begin(), R.end());
-    std::reverse(who.begin(), who.end());
-    std::reverse(lcp.begin(), lcp.end());
-    std::vector<int> biggest(s.size(), -1);
-    for (int i = 0; i < static_cast<int64_t>(s.size()); i++) {
-        int id = ob[i];
-        int x = L[id];
-        int y = R[id];
-        if (x == -1 || y == -1) {
-            biggest[i] = std::max(x, y);
-        } else if (ts[x].size() > ts[y].size()) {
-            biggest[i] = x;
-        } else {
-            biggest[i] = y;
-        }
-    }
-    delete[] S;
-    delete[] suf;
+    std::vector<int> R = get_closest();
 
     std::vector<int> answer;
-    int cur = 0;
-    while (cur < static_cast<int64_t>(s.size())) {
-        if (biggest[cur] == -1) {
-            // stopped at cur with answer, can print if needed
-            return {};
+    answer.reserve(text.size() / ((total_length - text.size()) / vocab.size()));
+
+    int64_t match_index = 0;
+    while (match_index < static_cast<int64_t>(text.size())) {
+        int id = suf_array_index[match_index];
+        int x = L[id];
+        int y = R[total_length - 1 - id];
+        int matched_word = -1;
+
+        if (x != -1 && y != -1) {
+            matched_word = vocab[x].size() > vocab[y].size() ? x : y;
+        } else {
+            matched_word = std::max(x, y);
+            if (matched_word == -1) {
+                return {};
+            }
         }
-        int nxt = biggest[cur];
-        cur += ts[nxt].size();
-        answer.emplace_back(nxt);
+
+        answer.push_back(matched_word);
+        match_index += vocab[matched_word].size();
     }
-    assert(cur == static_cast<int64_t>(s.size()));
+
+    assert(match_index == static_cast<int64_t>(text.size()));
     return answer;
 }
 

@@ -1,14 +1,8 @@
+#include <chrono>
 #include <gtest/gtest.h>
 #include <random>
-#include <chrono>
 
 #include "wordpiece.hpp"
-
-int64_t currentTs() {
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(
-               std::chrono::system_clock::now().time_since_epoch())
-        .count();
-}
 
 std::vector<int> naiveTokenization(const std::string &s, const std::vector<std::string> &vocab) {
     std::unordered_map<std::string_view, int> word_to_id;
@@ -43,14 +37,15 @@ std::vector<int> naiveTokenization(const std::string &s, const std::vector<std::
 void compare(const std::string &s, const std::vector<std::string> &vocab, bool print_perf = false) {
     assert(verifyVocab(vocab));
     auto start = currentTs();
-    std::vector<int> fast = get(s, vocab);
+    std::vector<int> fast = maxMatch(s, vocab);
     auto between = currentTs();
     std::vector<int> naive = naiveTokenization(s, vocab);
     auto after = currentTs();
 
     if (print_perf) {
         double perf = static_cast<double>(after - between) / static_cast<double>(between - start);
-        std::cout << s.size() << ' ' << vocab.size() << ' ' << perf << std::endl;
+        std::cout << s.size() << ' ' << vocab.size() << ' ' << perf << ' ' << between - start
+                  << std::endl;
     }
 
     ASSERT_EQ(fast, naive);
@@ -124,11 +119,16 @@ TEST(Stress, RandomSplitNegative) {
 
 TEST(Stress, Perf) {
     std::mt19937 rnd(17);
-    for (int str_len = 5; str_len <= 40; str_len += 5) {
-        for (int parts = 2; parts <= str_len; parts++) {
+    for (int str_len = 10000; str_len <= 10000; str_len += 5) {
+        for (int parts = 3000; parts <= 3000; parts++) {
             for (int i = 0; i < 3; i++) {
                 std::string sample = randomString(rnd, str_len);
                 std::vector<std::string> split = randomSplit(sample, rnd, parts);
+                /*std::cout << sample << std::endl;
+                for (const auto &t : split) {
+                    std::cout << "\"##" << t << "\", ";
+                }
+                std::cout << std::endl;*/
 
                 compare(sample, split, true);
             }
