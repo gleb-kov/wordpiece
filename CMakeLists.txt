@@ -53,8 +53,8 @@ include_directories(src/)
 add_executable(wordpiece main.cpp)
 target_link_libraries(wordpiece ${CONAN_LIBS})
 
-add_executable(micro_benchmark benchmarks/main.cpp)
-target_link_libraries(micro_benchmark ${CONAN_LIBS})
+add_executable(benchmark_micro benchmark_micro.cpp)
+target_link_libraries(benchmar_micro ${CONAN_LIBS})
 
 file(GLOB_RECURSE TEST_SOURCES tests/*.cpp tests/*.hpp)
 if (TEST_SOURCES)

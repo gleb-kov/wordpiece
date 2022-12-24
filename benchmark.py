@@ -7,7 +7,11 @@ from tensorflow_text import BertTokenizer as TensorflowBertTokenizer
 from tokenizers import BertWordPieceTokenizer as HuggingFaceBertTokenizer
 from torchtext.transforms import BERTTokenizer as TorchBertTokenizer
 
-# TODO: check https://github.com/pytorch/text/blob/8eb056103cd1d518d53252dd63d3c75f284345ca/benchmark/benchmark_bert_tokenizer.py
+# TODO: check
+# https://github.com/pytorch/text/blob/8eb056103cd1d518d53252dd63d3c75f284345ca/benchmark/benchmark_bert_tokenizer.py
+# https://github.com/pytorch/text/blob/5eb33ce1f7447df5069b6cfb55b8177c9bbaff08/test/torchtext_unittest/test_transforms.py
+# https://huggingface.co/transformers/v3.0.2/pretrained_models.html
+# https://github.com/VKCOM/YouTokenToMe/pull/101/files#
 
 def run_tensorflow(text, vocab_file):
     vocab_list = []
