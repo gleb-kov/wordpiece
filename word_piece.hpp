@@ -174,18 +174,18 @@ inline std::vector<int> wordPiece(const std::string_view text, const std::vector
     if (text.empty()) {
         return {};
     }
-    int64_t longest_word_vocab = 1;
-    int64_t total_length = text.size() + 1;
+    int longest_word_vocab = 1;
+    int total_length = static_cast<int>(text.size()) + 1;
     for (const auto &t : vocab) {
         total_length += t.size() + 1;
-        longest_word_vocab = std::max(longest_word_vocab, std::ssize(t));
+        longest_word_vocab = std::max(longest_word_vocab, static_cast<int>(t.size()));
     }
     int *S = new int[total_length + 3];
     int alphabet_size = 1;
 
     {
         // elements of s and ts must be > 1, so for example use c - 'a' + 2
-        size_t pos = 0;
+        int pos = 0;
         for (char c : text) {
             int alpha = c - 'a' + 2;
             S[pos++] = alpha;
@@ -206,7 +206,7 @@ inline std::vector<int> wordPiece(const std::string_view text, const std::vector
     S[total_length] = S[total_length + 1] = S[total_length + 2] = 0;
     // int64_t before = currentTs();
     int *suf = new int[total_length + 3];
-    suf_array3n::suffixArray(S, suf, total_length, alphabet_size);
+    detail::suf_array3n::suffixArray(S, suf, total_length, alphabet_size);
     // std::cout << "sufarray built in " << currentTs() - before << '\n';
 
     std::vector<int> suf_array_index(total_length);
@@ -214,18 +214,18 @@ inline std::vector<int> wordPiece(const std::string_view text, const std::vector
         suf_array_index[suf[i]] = i;
     }
 
-    std::vector<int> lcp = calcLcp(S, suf, suf_array_index);
+    std::vector<int> lcp = detail::calcLcp(S, suf, suf_array_index);
     delete[] S;
     delete[] suf;
 
     std::vector<int> who(total_length, -1);
 
     int vocab_start_pos = static_cast<int>(text.size()) + 1;
-    for (int i = 0; i < static_cast<int64_t>(vocab.size()); i++) {
+    for (int i = 0; i < static_cast<int>(vocab.size()); i++) {
         who[suf_array_index[vocab_start_pos]] = i;
         vocab_start_pos += vocab[i].size() + 1;
     }
-    auto get_closest = [&lcp, &who, total_length, longest_word_vocab, &vocab]() {
+    auto get_closest = [&lcp, &who, &vocab, longest_word_vocab, total_length]() {
         std::vector<int> result(total_length, -1);
         // (i, |i|); i is index in ts
         std::vector<std::pair<int, int>> st;
@@ -256,8 +256,8 @@ inline std::vector<int> wordPiece(const std::string_view text, const std::vector
     std::vector<int> answer;
     answer.reserve(text.size() / ((total_length - text.size()) / vocab.size()));
 
-    int64_t match_index = 0;
-    while (match_index < static_cast<int64_t>(text.size())) {
+    int match_index = 0;
+    while (match_index < static_cast<int>(text.size())) {
         int id = suf_array_index[match_index];
         int x = L[id];
         int y = R[total_length - 1 - id];
@@ -275,7 +275,7 @@ inline std::vector<int> wordPiece(const std::string_view text, const std::vector
         match_index += vocab[matched_word].size();
     }
 
-    assert(match_index == static_cast<int64_t>(text.size()));
+    assert(match_index == static_cast<int>(text.size()));
     return answer;
 }
 

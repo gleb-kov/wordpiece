@@ -1,17 +1,21 @@
+#include <string>
+#include <exception>
+#include <vector>
+#include <fstream>
+#include <iostream>
+#include <iterator>
+
 #include "naive.hpp"
-#include "word_piece.hpp"
+#include "../word_piece.hpp"
 
 int main(int argc, char *argv[]) {
     if (argc != 4) {
-        throw std::runtime_error("Usage: ./runner <mode> <text_filepath> <vocab_filepath>. Modes: naive/real.");
+        throw std::runtime_error("Usage: ./runner <mode> <text_filepath> <vocab_filepath>. Modes: naive, real.");
     }
 
     std::string mode = argv[1];
     std::string text_filepath = argv[2];
     std::string vocab_filepath = argv[3];
-
-    std::ios::sync_with_stdio(false);
-    std::cin.tie(0);
 
     // TODO: mmap read or read with O_DIRECT
     std::string text;
@@ -22,8 +26,9 @@ int main(int argc, char *argv[]) {
 
     std::vector<std::string> vocab;
     {
+        std::ifstream fin(vocab_filepath);
         std::string word;
-        while (std::getline(std::cin, &word)) {
+        while (std::getline(fin, word)) {
             vocab.push_back(std::move(word));
         }
     }

@@ -12,36 +12,6 @@
 
 inline std::vector<int> naiveTokenization(const std::string_view s, const std::vector<std::string> &vocab) {
     std::unordered_map<std::string_view, int> word_to_id;
-    for (int i = 0; i < static_cast<int64_t>(vocab.size()); i++) {
-        assert(word_to_id.count(vocab[i]) == 0);
-        word_to_id[vocab[i]] = i;
-    }
-
-    size_t start = 0;
-    size_t end = s.size();
-
-    std::vector<int> tokens;
-    while (start < end) {
-        std::string test(s.c_str() + start, end - start);
-
-        auto it = word_to_id.find(test);
-        if (it != word_to_id.end()) {
-            tokens.push_back(it->second);
-            start = end;
-            end = s.size();
-        } else {
-            end -= 1;
-            if (start == end) {
-                return {};
-            }
-        }
-    }
-
-    return tokens;
-}
-
-inline std::vector<int> sublinearTokenization(const std::string_view s, const std::vector<std::string> &vocab) {
-    std::unordered_map<std::string_view, int> word_to_id;
     size_t max_len = 0;
     for (int i = 0; i < static_cast<int64_t>(vocab.size()); i++) {
         assert(!vocab[i].empty());
