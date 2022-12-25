@@ -17,7 +17,6 @@ Single-header library.
 
 1. довести maxmatch до wordpiece
 2. сделать алгоритм безопасным для больших данных
-3. доделать бенчмарки с библиотеками 
 4. добавить в бенчмарки свою версию с наивным алгоритмом
 5. отказ от конана
 5. utf-8, тесты
@@ -29,6 +28,16 @@ Single-header library.
 
 ## Бенчмарки
 
-`python3 ./tests/benchmark.py`
+```
+pip3 install -r ./tests/requirements.txt
+python3 ./tests/benchmark.py
+```
 
-TODO: железо и таблица
+Бенчмарк запускался на:
+- OS: Ubuntu 22.04;
+- CPU: 11th Gen Intel Core i5-11400H @ 2.70GHz x12;
+- SSD: SK hynix PC711 256GB (SeqRead 2300 MB/s, SeqWrite 1320 MB/s, RndRead 36mcs, RndWrite 86mcs);
+- RAM: 16GB.
+
+TODO: полная таблица результатов
+

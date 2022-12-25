@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 project(wordpiece CXX)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -g1 -march=native")
@@ -20,9 +21,6 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
         -Wextra
         -Wpedantic
         -Wold-style-cast
-        -Wshadow=compatible-local
-        -Wcast-align=strict
-        -Wlogical-op
 
         -fdiagnostics-color=always
     )
@@ -38,5 +36,7 @@ else ()
     )
 endif ()
 
+# clang-tidy -p tests/build tests/tests.cpp tests/runner.cpp -- --std=c++17
+# clang-format -i --style=file tests/tests.cpp tests/runner.cpp word_piece.hpp
 add_executable(runner runner.cpp)
 add_executable(tests tests.cpp)

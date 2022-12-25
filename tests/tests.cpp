@@ -10,7 +10,10 @@
 #include "../word_piece.hpp"
 #include "naive.hpp"
 
-static int totalChecks = 0;
+int &totalChecks() {
+    static int counter = 0;
+    return counter;
+}
 
 inline bool verifyVocab(const std::vector<std::string> &vocab) {
     std::unordered_set<std::string> vocab_set{vocab.begin(), vocab.end()};
@@ -19,7 +22,7 @@ inline bool verifyVocab(const std::vector<std::string> &vocab) {
 }
 
 void assertEq(const std::vector<int> &lhs, const std::vector<int> &rhs) {
-    ++totalChecks;
+    ++totalChecks();
     if (lhs != rhs) {
         throw std::runtime_error("Comparison failed");
     }
@@ -39,7 +42,8 @@ void check(const std::string_view s, const std::vector<std::string> &vocab, bool
         auto naive_ts = after_ts - between_ts;
         std::cout << std::fixed << std::setprecision(2) << "Check passed; perf "
                   << fast_ts / 1'000'000 << "ms"
-                  << ", boost is " << 1.0 * naive_ts / fast_ts << " times" << std::endl;
+                  << ", boost is " << static_cast<double>(naive_ts) / static_cast<double>(fast_ts)
+                  << " times" << std::endl;
     }
 }
 
@@ -57,7 +61,7 @@ std::string randomString(std::mt19937 &rnd, int string_length) {
 std::vector<std::string> randomStringSet(std::mt19937 &rnd, int string_count, int max_string_len) {
     std::set<std::string> result;
     while (string_count > static_cast<int>(result.size())) {
-        int len = std::uniform_int_distribution(2, max_string_len)(rnd);
+        int len = std::uniform_int_distribution(4, max_string_len)(rnd);
         result.insert(randomString(rnd, len));
     }
 
@@ -199,11 +203,11 @@ int main() {
     std::cout << "running stress tests." << std::endl;
     testRandomSplit(10, 100, 5, 2, 100, true);
     testRandomSplit(10, 100, 5, 2, 100, false);
-    testRandomSplit(100'000, 1'000'000, 100'000, 30'000, 30'000, true, true);
+    testRandomSplit(100'000, 1'000'000, 200'000, 30'000, 30'000, true, true);
 
     testRandomConcat(10, 100, 5, 2, 100, 10, true);
     testRandomConcat(10, 100, 5, 2, 100, 10, false);
-    testRandomConcat(100'000, 1'000'000, 100'000, 30'000, 30'000, 12, true, true);
+    testRandomConcat(100'000, 1'000'000, 100'000, 30'000, 30'000, 18, true, true);
 
-    std::cout << "Tests are finished. Passed " << totalChecks << " checks";
+    std::cout << "Tests are finished. Passed " << totalChecks() << " checks.";
 }

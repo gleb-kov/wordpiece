@@ -10,6 +10,12 @@ from torchtext.transforms import BERTTokenizer as TorchBertTokenizer
 TEXT_FILE = "text.txt"
 VOCAB_FILE = "vocab.txt"
 
+TENSORFLOW = 'tensorflow'
+HUGGING_FACE = 'hugging face'
+TORCH = 'torch'
+NAIVE = 'naive'
+WORD_PIECE = 'wordpiece'
+
 # TODO: check
 # https://github.com/pytorch/text/blob/8eb056103cd1d518d53252dd63d3c75f284345ca/benchmark/benchmark_bert_tokenizer.py
 # https://github.com/pytorch/text/blob/5eb33ce1f7447df5069b6cfb55b8177c9bbaff08/test/torchtext_unittest/test_transforms.py
@@ -24,7 +30,7 @@ def run_tensorflow(text_file, vocab_file):
     with open(vocab_file, 'r') as f:
         for word in f:
             vocab_list.append(word)
-    lookup_table = tf.lookup.StaticVocabularyTable(
+    lookup_table = tensorflow.lookup.StaticVocabularyTable(
         tensorflow.lookup.KeyValueTensorInitializer(
             keys=vocab_list,
             key_dtype=tensorflow.string,
@@ -36,7 +42,6 @@ def run_tensorflow(text_file, vocab_file):
     )
     bert_tokenizer = TensorflowBertTokenizer(lookup_table, token_out_type=tensorflow.int64)
     ids = bert_tokenizer.tokenize(text).merge_dims(1, -1)
-    assert len(ids) > 0
     return ids
 
 
@@ -70,9 +75,32 @@ def run_fast_naive(text_file, vocab_file):
     return rc
 
 
+def run_algo(algo_name, text_file, vocab_file):
+    algo = None
+    if algo_name == TENSORFLOW:
+        algo = run_tensorflow
+    elif algo_name == HUGGING_FACE:
+        algo = run_hugging_face
+    elif algo_name == TORCH:
+        algo = run_torch
+    elif algo_name == NAIVE:
+        algo = run_naive
+    elif algo_name == WORD_PIECE:
+        algo = run_word_piece
+
+    return algo(text_file, vocab_file)
+
+
 if __name__ == "__main__":
-    for impl in [run_word_piece, run_fast_naive, run_hugging_face, run_tensorflow, run_torch, run_fastest_naive]:
+    result = []
+    for algo_name in [HUGGING_FACE, TORCH, TENSORFLOW]:
         before = time.time_ns()
-        res = impl(TEXT_FILE, VOCAB_FILE)
+        res = run_algo(algo_name, TEXT_FILE, VOCAB_FILE)
         duration = time.time_ns() - before
-        print(str(impl), duration)
+        result.append((duration, algo_name))
+    result = sorted(result)
+
+    print("==================================================")
+    print("Benchmark is finished.")
+    for algo in result:
+        print(f'{algo[1]}: {algo[0] // 1000} mcs')
