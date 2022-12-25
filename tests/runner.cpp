@@ -1,16 +1,17 @@
-#include <string>
 #include <exception>
-#include <vector>
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <string>
+#include <vector>
 
-#include "naive.hpp"
 #include "../word_piece.hpp"
+#include "naive.hpp"
 
 int main(int argc, char *argv[]) {
     if (argc != 4) {
-        throw std::runtime_error("Usage: ./runner <mode> <text_filepath> <vocab_filepath>. Modes: naive, real.");
+        throw std::runtime_error(
+            "Usage: ./runner <mode> <text_filepath> <vocab_filepath>. Modes: naive, real.");
     }
 
     std::string mode = argv[1];
@@ -34,7 +35,7 @@ int main(int argc, char *argv[]) {
     }
 
     std::vector<int> ids;
-    
+
     if (mode == "naive") {
         ids = naiveTokenization(text, vocab);
     } else if (mode == "real") {

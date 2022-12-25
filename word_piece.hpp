@@ -1,16 +1,16 @@
 #ifndef WORD_PIECE_H
 #define WORD_PIECE_H
 
+#include <algorithm>
+#include <cassert>
 #include <chrono>
+#include <cstring>
+#include <fstream>
 #include <string>
 #include <string_view>
-#include <fstream>
-#include <cstring>
-#include <vector>
-#include <algorithm>
-#include <utility>
 #include <unordered_set>
-#include <cassert>
+#include <utility>
+#include <vector>
 
 namespace word_piece {
 
@@ -170,7 +170,8 @@ calcLcp(const int *s, const int *suf_a, const std::vector<int> &suf_array_index)
 // requires ts to have distinct strings
 // if s=(t_i1, t_i2, .. t_ik) returns (i1, i2, .. ik)
 // returns {} if greedy fails
-inline std::vector<int> wordPiece(const std::string_view text, const std::vector<std::string> &vocab) {
+inline std::vector<int> wordPiece(const std::string_view text,
+                                  const std::vector<std::string> &vocab) {
     if (text.empty()) {
         return {};
     }

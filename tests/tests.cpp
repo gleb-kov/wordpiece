@@ -1,14 +1,14 @@
 #include <chrono>
+#include <iomanip>
+#include <iostream>
 #include <random>
-#include <vector>
+#include <set>
 #include <string>
 #include <string_view>
-#include <set>
-#include <iostream>
-#include <iomanip>
+#include <vector>
 
-#include "naive.hpp"
 #include "../word_piece.hpp"
+#include "naive.hpp"
 
 static int totalChecks = 0;
 
@@ -37,7 +37,9 @@ void check(const std::string_view s, const std::vector<std::string> &vocab, bool
     if (verbose) {
         auto fast_ts = between_ts - start_ts;
         auto naive_ts = after_ts - between_ts;
-        std::cout << std::fixed << std::setprecision(2) << "Check passed; perf " << fast_ts / 1'000'000 << "ms" << ", boost is " << 1.0 * naive_ts / fast_ts << " times" << std::endl;
+        std::cout << std::fixed << std::setprecision(2) << "Check passed; perf "
+                  << fast_ts / 1'000'000 << "ms"
+                  << ", boost is " << 1.0 * naive_ts / fast_ts << " times" << std::endl;
     }
 }
 
@@ -63,7 +65,9 @@ std::vector<std::string> randomStringSet(std::mt19937 &rnd, int string_count, in
                                     std::make_move_iterator(result.end()));
 }
 
-std::string randomStringFromSet(std::mt19937 &rnd, int string_length, const std::vector<std::string> &string_set) {
+std::string randomStringFromSet(std::mt19937 &rnd,
+                                int string_length,
+                                const std::vector<std::string> &string_set) {
     std::string result;
     result.reserve(string_length + 100);
     const int right_index = static_cast<int>(string_set.size()) - 1;
@@ -106,30 +110,40 @@ void testSimple() {
     assertEq(word_piece::wordPiece("aaaa", {"aa", "a"}), std::vector<int>({0, 0}));
 
     assertEq(word_piece::wordPiece("abcdef", {"def", "abc"}), std::vector<int>({1, 0}));
-    assertEq(word_piece::wordPiece("abcdef", {"bcde", "ac", "def", "bc", "bcdef", "a"}), std::vector<int>({5, 4}));
+    assertEq(word_piece::wordPiece("abcdef", {"bcde", "ac", "def", "bc", "bcdef", "a"}),
+             std::vector<int>({5, 4}));
     assertEq(word_piece::wordPiece("abcdef", {"bcdd", "ac", "def", "bc", "bcdff", "a"}),
-              std::vector<int>({5, 3, 2}));
+             std::vector<int>({5, 3, 2}));
 }
 
 void testNonSplitted() {
     assertEq(word_piece::wordPiece("abc", {"a", "abd"}), std::vector<int>());
-    assertEq(word_piece::wordPiece("abcdef", {"bcde", "ac", "def", "bc", "bcdef"}), std::vector<int>({}));
+    assertEq(word_piece::wordPiece("abcdef", {"bcde", "ac", "def", "bc", "bcdef"}),
+             std::vector<int>({}));
 }
 
 void testMaxMatch() {
     // NB, this considered as MaxMatch algorithm
     assertEq(word_piece::wordPiece("abcdef", {"a", "bcdef", "ab", "c", "d", "e", "f"}),
-              std::vector<int>({2, 3, 4, 5, 6}));
+             std::vector<int>({2, 3, 4, 5, 6}));
 
     assertEq(word_piece::wordPiece("abcdef", {"abcd", "def", "abc"}), std::vector<int>({}));
 }
 
-void testRandomSplit(int text_len_from, int text_len_to, int text_len_step, int parts_from, int parts_to, bool positive, bool verbose = false) {
+void testRandomSplit(int text_len_from,
+                     int text_len_to,
+                     int text_len_step,
+                     int parts_from,
+                     int parts_to,
+                     bool positive,
+                     bool verbose = false) {
     std::mt19937 rnd(17);
     for (int text_len = text_len_from; text_len <= text_len_to; text_len += text_len_step) {
-        for (int parts = std::min(text_len, parts_from); parts <= std::min(text_len, parts_to); parts++) {
+        for (int parts = std::min(text_len, parts_from); parts <= std::min(text_len, parts_to);
+             parts++) {
             if (verbose) {
-                std::cout << "running testRandomSplit, text_len " << text_len << ", vocab_size " << parts << std::endl;
+                std::cout << "running testRandomSplit, text_len " << text_len << ", vocab_size "
+                          << parts << std::endl;
             }
 
             for (int i = 0; i < 3; i++) {
@@ -145,13 +159,22 @@ void testRandomSplit(int text_len_from, int text_len_to, int text_len_step, int 
     }
 }
 
-void testRandomConcat(int text_len_from, int text_len_to, int text_len_step, int parts_from, int parts_to, int max_part_len, bool positive, bool verbose = false) {
+void testRandomConcat(int text_len_from,
+                      int text_len_to,
+                      int text_len_step,
+                      int parts_from,
+                      int parts_to,
+                      int max_part_len,
+                      bool positive,
+                      bool verbose = false) {
     std::mt19937 rnd(17);
 
     for (int text_len = text_len_from; text_len <= text_len_to; text_len += text_len_step) {
-        for (int parts = std::min(text_len, parts_from); parts <= std::min(text_len, parts_to); parts++) {
+        for (int parts = std::min(text_len, parts_from); parts <= std::min(text_len, parts_to);
+             parts++) {
             if (verbose) {
-                std::cout << "running testRandomConcat, text_len " << text_len << ", vocab_size " << parts << std::endl;
+                std::cout << "running testRandomConcat, text_len " << text_len << ", vocab_size "
+                          << parts << std::endl;
             }
 
             for (int i = 0; i < 3; i++) {

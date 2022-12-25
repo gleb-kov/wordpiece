@@ -1,16 +1,17 @@
 #ifndef NAIVE_WORD_PIECE_H
 #define NAIVE_WORD_PIECE_H
 
+#include <algorithm>
+#include <cassert>
+#include <fstream>
 #include <string>
 #include <string_view>
-#include <fstream>
-#include <vector>
-#include <algorithm>
-#include <utility>
 #include <unordered_map>
-#include <cassert>
+#include <utility>
+#include <vector>
 
-inline std::vector<int> naiveTokenization(const std::string_view s, const std::vector<std::string> &vocab) {
+inline std::vector<int> naiveTokenization(const std::string_view s,
+                                          const std::vector<std::string> &vocab) {
     std::unordered_map<std::string_view, int> word_to_id;
     size_t max_len = 0;
     for (int i = 0; i < static_cast<int64_t>(vocab.size()); i++) {
