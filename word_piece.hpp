@@ -1,7 +1,20 @@
-#ifndef WORDPIECE_H
-#define WORDPIECE_H
+#ifndef WORD_PIECE_H
+#define WORD_PIECE_H
 
-#include <bits/stdc++.h>
+#include <algorithm>
+#include <cassert>
+#include <chrono>
+#include <cstring>
+#include <fstream>
+#include <string>
+#include <string_view>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
+namespace word_piece {
+
+namespace detail {
 
 inline int64_t currentTs() {
     return std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -145,22 +158,25 @@ calcLcp(const int *s, const int *suf_a, const std::vector<int> &suf_array_index)
                 k--;
             }
         } else {
-            lcp[n - 1] = -1;
+            lcp[n - 1] = -1; // TODO: erase?
         }
     }
-    lcp.pop_back();
+    lcp.pop_back(); // todo: erase?
     return lcp;
 }
+
+} // namespace detail
 
 // requires ts to have distinct strings
 // if s=(t_i1, t_i2, .. t_ik) returns (i1, i2, .. ik)
 // returns {} if greedy fails
-inline std::vector<int> maxMatch(const std::string &text, const std::vector<std::string> &vocab) {
+inline std::vector<int> wordPiece(const std::string_view text,
+                                  const std::vector<std::string> &vocab) {
     if (text.empty()) {
         return {};
     }
     int longest_word_vocab = 1;
-    int total_length = text.size() + 1;
+    int total_length = static_cast<int>(text.size()) + 1;
     for (const auto &t : vocab) {
         total_length += t.size() + 1;
         longest_word_vocab = std::max(longest_word_vocab, static_cast<int>(t.size()));
@@ -177,8 +193,8 @@ inline std::vector<int> maxMatch(const std::string &text, const std::vector<std:
             alphabet_size = std::max(alphabet_size, alpha);
         }
         S[pos++] = 1;
-        for (const auto &t : vocab) {
-            for (char c : t) {
+        for (const std::string_view word : vocab) {
+            for (char c : word) {
                 int alpha = c - 'a' + 2;
                 S[pos++] = alpha;
                 alphabet_size = std::max(alphabet_size, alpha);
@@ -191,7 +207,7 @@ inline std::vector<int> maxMatch(const std::string &text, const std::vector<std:
     S[total_length] = S[total_length + 1] = S[total_length + 2] = 0;
     // int64_t before = currentTs();
     int *suf = new int[total_length + 3];
-    suf_array3n::suffixArray(S, suf, total_length, alphabet_size);
+    detail::suf_array3n::suffixArray(S, suf, total_length, alphabet_size);
     // std::cout << "sufarray built in " << currentTs() - before << '\n';
 
     std::vector<int> suf_array_index(total_length);
@@ -199,18 +215,18 @@ inline std::vector<int> maxMatch(const std::string &text, const std::vector<std:
         suf_array_index[suf[i]] = i;
     }
 
-    std::vector<int> lcp = calcLcp(S, suf, suf_array_index);
+    std::vector<int> lcp = detail::calcLcp(S, suf, suf_array_index);
     delete[] S;
     delete[] suf;
 
     std::vector<int> who(total_length, -1);
 
     int vocab_start_pos = static_cast<int>(text.size()) + 1;
-    for (int i = 0; i < static_cast<int64_t>(vocab.size()); i++) {
+    for (int i = 0; i < static_cast<int>(vocab.size()); i++) {
         who[suf_array_index[vocab_start_pos]] = i;
         vocab_start_pos += vocab[i].size() + 1;
     }
-    auto get_closest = [&lcp, &who, total_length, longest_word_vocab, &vocab]() {
+    auto get_closest = [&lcp, &who, &vocab, longest_word_vocab, total_length]() {
         std::vector<int> result(total_length, -1);
         // (i, |i|); i is index in ts
         std::vector<std::pair<int, int>> st;
@@ -241,8 +257,8 @@ inline std::vector<int> maxMatch(const std::string &text, const std::vector<std:
     std::vector<int> answer;
     answer.reserve(text.size() / ((total_length - text.size()) / vocab.size()));
 
-    int64_t match_index = 0;
-    while (match_index < static_cast<int64_t>(text.size())) {
+    int match_index = 0;
+    while (match_index < static_cast<int>(text.size())) {
         int id = suf_array_index[match_index];
         int x = L[id];
         int y = R[total_length - 1 - id];
@@ -250,24 +266,20 @@ inline std::vector<int> maxMatch(const std::string &text, const std::vector<std:
 
         if (x != -1 && y != -1) {
             matched_word = vocab[x].size() > vocab[y].size() ? x : y;
-        } else {
+        } else if (x != -1 || y != -1) {
             matched_word = std::max(x, y);
-            if (matched_word == -1) {
-                return {};
-            }
+        } else {
+            return {};
         }
 
         answer.push_back(matched_word);
         match_index += vocab[matched_word].size();
     }
 
-    assert(match_index == static_cast<int64_t>(text.size()));
+    assert(match_index == static_cast<int>(text.size()));
     return answer;
 }
 
-inline bool verifyVocab(const std::vector<std::string> &vocab) {
-    std::unordered_set<std::string> vocab_set{vocab.begin(), vocab.end()};
-    return !vocab.empty() && vocab.size() == vocab_set.size();
-}
+} // namespace word_piece
 
-#endif // WORDPIECE_H
+#endif // WORD_PIECE_H
