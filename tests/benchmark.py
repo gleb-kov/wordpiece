@@ -7,13 +7,19 @@ from tensorflow_text import BertTokenizer as TensorflowBertTokenizer
 from tokenizers import BertWordPieceTokenizer as HuggingFaceBertTokenizer
 from torchtext.transforms import BERTTokenizer as TorchBertTokenizer
 
+TEXT_FILE = "text.txt"
+VOCAB_FILE = "vocab.txt"
+
 # TODO: check
 # https://github.com/pytorch/text/blob/8eb056103cd1d518d53252dd63d3c75f284345ca/benchmark/benchmark_bert_tokenizer.py
 # https://github.com/pytorch/text/blob/5eb33ce1f7447df5069b6cfb55b8177c9bbaff08/test/torchtext_unittest/test_transforms.py
 # https://huggingface.co/transformers/v3.0.2/pretrained_models.html
 # https://github.com/VKCOM/YouTokenToMe/pull/101/files#
 
-def run_tensorflow(text, vocab_file):
+def run_tensorflow(text_file, vocab_file):
+    text = ""
+    with open(text_file, 'r') as f:
+        text = f.read()
     vocab_list = []
     with open(vocab_file, 'r') as f:
         for word in f:
@@ -29,44 +35,44 @@ def run_tensorflow(text, vocab_file):
         num_oov_buckets=1
     )
     bert_tokenizer = TensorflowBertTokenizer(lookup_table, token_out_type=tensorflow.int64)
-    return bert_tokenizer.tokenize(text).merge_dims(1, -1)
+    ids = bert_tokenizer.tokenize(text).merge_dims(1, -1)
+    assert len(ids) > 0
+    return ids
 
 
-def run_hugging_face(text, vocab_file):
+def run_hugging_face(text_file, vocab_file):
+    with open(text_file, 'r') as f:
+        text = f.read()
     tokenizer = HuggingFaceBertTokenizer(vocab_file)
     print(tokenizer)
-    output = tokenizer.encode(text)
-    return output.ids
+    ids = tokenizer.encode(text).ids
+    assert len(ids) > 0
+    return ids
 
 
-def run_torch(text, vocab_file):
+def run_torch(text_file, vocab_file):
+    with open(text_file, 'r') as f:
+        text = f.read()
     tokenizer = TorchBertTokenizer(vocab_file)
-    return tokenizer(text)
+    ids = tokenizer(text)
+    assert len(ids) > 0
+    return ids
 
 
-def run_fastest_naive(text, vocab_file):
-    pass
+def run_word_piece(text_file, vocab_file):
+    rc = os.system(f"./runner real {text_file} {vocab_file}")
+    assert rc == 0
+    return rc
 
-
-def run_benchmark(impls, text, vocab_file):
-    before = time.time_ns()
-    impl(text, vocab_list)
-    duration = time.time_ns() - before
-    print(duration)
+def run_fast_naive(text_file, vocab_file):
+    rc = os.system(f"./runner naive {text_file} {vocab_file}")
+    assert rc == 0
+    return rc
 
 
 if __name__ == "__main__":
-    text = "Sponge bob Squarepants is an Avenger Marvel Avengers"
-    vocab_list = [
-        "##ack", "##ama", "##ger", "##gers", "##onge", "##pants", "##uare",
-        "##vel", "##ven", "an", "A", "Bar", "Hates", "Mar", "Ob",
-        "Patrick", "President", "Sp", "Sq", "bob", "box", "has", "highest",
-        "is", "office", "the",
-    ]
-    vocab_file = 'bert_vocab.txt'
-    with open(vocab_filename, 'w') as f:
-        for word in vocab_list:
-            f.write(f'{word}\n')
-
-    for impl in [run_hugging_face, run_tensorflow, run_torch, run_fastest_naive]:
-        run_benchmark(impl, text, vocab_file)
+    for impl in [run_word_piece, run_fast_naive, run_hugging_face, run_tensorflow, run_torch, run_fastest_naive]:
+        before = time.time_ns()
+        res = impl(TEXT_FILE, VOCAB_FILE)
+        duration = time.time_ns() - before
+        print(str(impl), duration)
