@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 
 import tensorflow
@@ -7,14 +8,14 @@ from tensorflow_text import BertTokenizer as TensorflowBertTokenizer
 from tokenizers import BertWordPieceTokenizer as HuggingFaceBertTokenizer
 from torchtext.transforms import BERTTokenizer as TorchBertTokenizer
 
-TEXT_FILE = "text.txt"
-VOCAB_FILE = "vocab.txt"
 
-TENSORFLOW = 'tensorflow'
 HUGGING_FACE = 'hugging face'
-TORCH = 'torch'
 NAIVE = 'naive'
-WORD_PIECE = 'wordpiece'
+TENSORFLOW = 'tensorflow'
+TORCH = 'torch'
+WORD_PIECE = 'word_piece'
+
+ALGORITHMS = [HUGGING_FACE, TENSORFLOW, TORCH] # TODO: add NAIVE and WORD_PIECE
 
 # TODO: check
 # https://github.com/pytorch/text/blob/8eb056103cd1d518d53252dd63d3c75f284345ca/benchmark/benchmark_bert_tokenizer.py
@@ -65,40 +66,71 @@ def run_torch(text_file, vocab_file):
 
 
 def run_word_piece(text_file, vocab_file):
-    rc = os.system(f"./runner real {text_file} {vocab_file}")
+    rc = os.system(f"./build/runner real {text_file} {vocab_file}")
     assert rc == 0
     return rc
 
-def run_fast_naive(text_file, vocab_file):
-    rc = os.system(f"./runner naive {text_file} {vocab_file}")
+def run_naive(text_file, vocab_file):
+    rc = os.system(f"./build/runner naive {text_file} {vocab_file}")
     assert rc == 0
     return rc
 
 
-def run_algo(algo_name, text_file, vocab_file):
-    algo = None
-    if algo_name == TENSORFLOW:
-        algo = run_tensorflow
-    elif algo_name == HUGGING_FACE:
-        algo = run_hugging_face
-    elif algo_name == TORCH:
-        algo = run_torch
-    elif algo_name == NAIVE:
-        algo = run_naive
-    elif algo_name == WORD_PIECE:
-        algo = run_word_piece
+def run_algorithm(algorithm, text_file, vocab_file):
+    algorithm_map = {
+        HUGGING_FACE: run_hugging_face,
+        NAIVE: run_naive,
+        TORCH: run_torch,
+        TENSORFLOW: run_tensorflow,
+        WORD_PIECE: run_word_piece,
+    }
 
-    return algo(text_file, vocab_file)
+    algorithm_func = algorithm_map[algorithm]
+    return algorithm_func(text_file, vocab_file)
+
+
+def run_benchmark(text_file, vocab_file):
+    result = []
+    for algorithm in ALGORITHMS:
+        before = time.time_ns()
+        res = run_algorithm(algorithm, text_file, vocab_file)
+        duration = time.time_ns() - before
+        result.append((duration, algorithm))
+
+    result = sorted(result)
+    return result
+
+
+def cut(source_file, destination_file, text_size_mb):
+    bytes_processed = 0
+    with open(source_file, "r") as fin:
+        with open(destination_file, "w") as fout:
+            while bytes_processed < text_size_mb * 1_000_000:
+                line = fin.readline()
+                bytes_processed += len(line.encode())
+                fout.write(line)
 
 
 if __name__ == "__main__":
-    result = []
-    for algo_name in [HUGGING_FACE, TORCH, TENSORFLOW]:
-        before = time.time_ns()
-        res = run_algo(algo_name, TEXT_FILE, VOCAB_FILE)
-        duration = time.time_ns() - before
-        result.append((duration, algo_name))
-    result = sorted(result)
+    if len(sys.argv) != 4:
+        print("Usage: benchmark.py <DATA_FILE> <VOCAB_FILE> <TEXT_SIZE_MB>.")
+        raise ValueError
+
+    data_file = str(sys.argv[1])
+    vocab_file = str(sys.argv[2])
+    text_size_mb = int(sys.argv[3])
+
+    if text_size_mb != -1:
+        text_file = data_file + '.data'
+        remove_text_file = False
+        cut(data_file, text_file, text_size_mb)
+    else:
+        text_file = data_file
+        remove_text_file = True
+
+    result = run_benchmark(text_file, vocab_file)
+    if remove_text_file:
+        os.remove(text_file)
 
     print("==================================================")
     print("Benchmark is finished.")

@@ -4,3 +4,4 @@ build/
 venv/
 .idea/
 .vscode/
+data/

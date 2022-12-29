@@ -9,6 +9,7 @@
 #include "naive.hpp"
 
 int main(int argc, char *argv[]) {
+    auto ts_start = word_piece::detail::currentTs();
     if (argc != 4) {
         throw std::runtime_error(
             "Usage: ./runner <mode> <text_filepath> <vocab_filepath>. Modes: naive, real.");
@@ -34,12 +35,16 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    auto ts_after_io = word_piece::detail::currentTs();
+
     std::vector<int> ids;
 
-    if (mode == "naive") {
+    /*if (mode == "naive") {
         ids = naiveTokenization(text, vocab);
     } else if (mode == "real") {
         ids = word_piece::wordPiece(text, vocab);
     }
-    std::cout << ids.size();
+    std::cout << ids.size();*/
+    auto ts_finish = word_piece::detail::currentTs();
+    std::cout << "Finished in " << ts_after_io - ts_start << " " << ts_finish - ts_start;
 }

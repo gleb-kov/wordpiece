@@ -29,8 +29,7 @@ Single-header library.
 ## Бенчмарки
 
 ```
-pip3 install -r ./tests/requirements.txt
-python3 ./tests/benchmark.py
+
 ```
 
 Бенчмарк запускался на:
@@ -38,6 +37,23 @@ python3 ./tests/benchmark.py
 - CPU: 11th Gen Intel Core i5-11400H @ 2.70GHz x12;
 - SSD: SK hynix PC711 256GB (SeqRead 2300 MB/s, SeqWrite 1320 MB/s, RndRead 36mcs, RndWrite 86mcs);
 - RAM: 16GB.
+
+Подготовка для бенчмарка:
+```bash
+apt install wget bzip2 perl
+mkdir data
+wget -O data/wiki.xml.bz2 https://www.dropbox.com/s/cnrhd11zdtc1pic/enwiki-20181001-corpus.xml.bz2?dl=1
+wget -O data/xml2txt.pl https://www.dropbox.com/s/p3ta9spzfviovk0/xml2txt.pl
+bzip2 -kdc data/wiki.xml.bz2 > data/wiki.xml
+perl xml2txt.pl -nomath -notables wiki.xml wiki.txt
+pip3 install -r tests/requirements.txt
+cmake -S tests -B tests/build -DCMAKE_BUILD_TYPE=Release && make -C tests/build
+```
+
+Запуск бенчмарка:
+```bash
+make -C tests/build && python3 tests/benchmark.py data/wiki.txt data/vocab.txt 100 
+```
 
 TODO: полная таблица результатов
 

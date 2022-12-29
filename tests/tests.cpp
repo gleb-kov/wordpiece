@@ -10,7 +10,7 @@
 #include "../word_piece.hpp"
 #include "naive.hpp"
 
-int &totalChecks() {
+static int &totalChecks() {
     static int counter = 0;
     return counter;
 }
