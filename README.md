@@ -18,7 +18,6 @@ Single-header library.
 1. довести maxmatch до wordpiece
 2. сделать алгоритм безопасным для больших данных
 4. добавить в бенчмарки свою версию с наивным алгоритмом
-5. отказ от конана
 5. utf-8, тесты
 6. перевести оба алгоритма во внешнюю память, сравнить
 
@@ -26,11 +25,9 @@ Single-header library.
 
 `./tests/tests`
 
+TODO: описание тестов
+
 ## Бенчмарки
-
-```
-
-```
 
 Бенчмарк запускался на:
 - OS: Ubuntu 22.04;
@@ -40,12 +37,12 @@ Single-header library.
 
 Подготовка для бенчмарка:
 ```bash
-apt install wget bzip2 perl
-mkdir data
+apt install wget bzip2 perl cmake make
+mkdir -p data
 wget -O data/wiki.xml.bz2 https://www.dropbox.com/s/cnrhd11zdtc1pic/enwiki-20181001-corpus.xml.bz2?dl=1
 wget -O data/xml2txt.pl https://www.dropbox.com/s/p3ta9spzfviovk0/xml2txt.pl
 bzip2 -kdc data/wiki.xml.bz2 > data/wiki.xml
-perl xml2txt.pl -nomath -notables wiki.xml wiki.txt
+perl data/xml2txt.pl -nomath -notables data/wiki.xml data/wiki.txt
 pip3 install -r tests/requirements.txt
 cmake -S tests -B tests/build -DCMAKE_BUILD_TYPE=Release && make -C tests/build
 ```
@@ -56,4 +53,3 @@ make -C tests/build && python3 tests/benchmark.py data/wiki.txt data/vocab.txt 1
 ```
 
 TODO: полная таблица результатов
-
