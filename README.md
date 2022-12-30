@@ -39,6 +39,7 @@ TODO: описание тестов
 ```bash
 apt install wget bzip2 perl cmake make
 mkdir -p data
+wget -O data/vocab.txt https://huggingface.co/bert-base-uncased/resolve/main/vocab.txt
 wget -O data/wiki.xml.bz2 https://www.dropbox.com/s/cnrhd11zdtc1pic/enwiki-20181001-corpus.xml.bz2?dl=1
 wget -O data/xml2txt.pl https://www.dropbox.com/s/p3ta9spzfviovk0/xml2txt.pl
 bzip2 -kdc data/wiki.xml.bz2 > data/wiki.xml
@@ -50,7 +51,7 @@ cmake -S tests -B tests/build -DCMAKE_BUILD_TYPE=Release
 
 Запуск бенчмарка:
 ```bash
-make -C tests/build && python3 tests/benchmark.py data/wiki.txt data/vocab.txt 100 
+source venv/bin/activate && make -C tests/build && python3 tests/benchmark.py data/wiki.txt data/vocab.txt 100
 ```
 
 TODO: полная таблица результатов

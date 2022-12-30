@@ -13,7 +13,7 @@ HUGGING_FACE = 'hugging face'
 NAIVE = 'naive'
 TENSORFLOW = 'tensorflow'
 TORCH = 'torch'
-WORD_PIECE = 'word_piece'
+WORD_PIECE = 'word piece'
 
 ALGORITHMS = [HUGGING_FACE, TENSORFLOW, TORCH] # TODO: add NAIVE and WORD_PIECE
 
@@ -93,6 +93,7 @@ def run_benchmark(text_file, vocab_file):
     result = []
     for algorithm in ALGORITHMS:
         before = time.time_ns()
+        print(f'Running {algorithm}')
         res = run_algorithm(algorithm, text_file, vocab_file)
         duration = time.time_ns() - before
         result.append((duration, algorithm))
@@ -121,12 +122,12 @@ if __name__ == "__main__":
     text_size_mb = int(sys.argv[3])
 
     if text_size_mb != -1:
-        text_file = data_file + '.data'
-        remove_text_file = False
+        text_file = data_file + f'{text_size_mb}.data'
+        remove_text_file = True
         cut(data_file, text_file, text_size_mb)
     else:
         text_file = data_file
-        remove_text_file = True
+        remove_text_file = False
 
     result = run_benchmark(text_file, vocab_file)
     if remove_text_file:
@@ -135,4 +136,6 @@ if __name__ == "__main__":
     print("==================================================")
     print("Benchmark is finished.")
     for algo in result:
-        print(f'{algo[1]}: {algo[0] // 1000} mcs')
+        duration_ms = algo[0] // 1_000_000
+        duration_sec = duration_ms / 1000
+        print(f'{algo[1]}: {duration_sec:.1f} sec')
