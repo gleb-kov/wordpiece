@@ -205,11 +205,24 @@ int main() {
     std::cout << "running stress tests." << std::endl;
     testRandomSplit(10, 100, 5, 2, 100, true);
     testRandomSplit(10, 100, 5, 2, 100, false);
-    testRandomSplit(100'000, 1'000'000, 200'000, kWordPieceVocabSize, kWordPieceVocabSize, true, true);
+    testRandomSplit(100'000,
+                    1'000'000,
+                    200'000,
+                    kWordPieceVocabSize,
+                    kWordPieceVocabSize,
+                    true,
+                    true);
 
     testRandomConcat(10, 100, 5, 2, 100, 10, true);
     testRandomConcat(10, 100, 5, 2, 100, 10, false);
-    testRandomConcat(100'000, 1'000'000, 100'000, kWordPieceVocabSize, kWordPieceVocabSize, 18, true, true);
+    testRandomConcat(100'000,
+                     1'000'000,
+                     100'000,
+                     kWordPieceVocabSize,
+                     kWordPieceVocabSize,
+                     18,
+                     true,
+                     true);
 
     std::cout << "Tests are finished. Passed " << totalChecks() << " checks.";
 }

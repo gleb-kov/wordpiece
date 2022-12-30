@@ -43,8 +43,9 @@ wget -O data/wiki.xml.bz2 https://www.dropbox.com/s/cnrhd11zdtc1pic/enwiki-20181
 wget -O data/xml2txt.pl https://www.dropbox.com/s/p3ta9spzfviovk0/xml2txt.pl
 bzip2 -kdc data/wiki.xml.bz2 > data/wiki.xml
 perl data/xml2txt.pl -nomath -notables data/wiki.xml data/wiki.txt
+python3 -m venv venv && source venv/bin/activate
 pip3 install -r tests/requirements.txt
-cmake -S tests -B tests/build -DCMAKE_BUILD_TYPE=Release && make -C tests/build
+cmake -S tests -B tests/build -DCMAKE_BUILD_TYPE=Release
 ```
 
 Запуск бенчмарка:

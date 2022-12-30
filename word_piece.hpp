@@ -51,7 +51,11 @@ inline void radixPass(int *a, int *b, int *r, int n, int K) { // count occurrenc
 // find the suffix array SA of s[0..n-1] in {1..K}?n
 // require s[n]=s[n+1]=s[n+2]=0, n>=2
 inline void suffixArray(int *s, int *SA, int n, int K) {
-    int n0 = (n + 2) / 3, n1 = (n + 1) / 3, n2 = n / 3, n02 = n0 + n2;
+    int n0 = (n + 2) / 3;
+    int n1 = (n + 1) / 3;
+    int n2 = n / 3;
+    int n02 = n0 + n2;
+
     int *s12 = new int[n02 + 3];
     s12[n02] = s12[n02 + 1] = s12[n02 + 2] = 0;
     int *SA12 = new int[n02 + 3];
@@ -74,7 +78,11 @@ inline void suffixArray(int *s, int *SA, int n, int K) {
     radixPass(SA12, s12, s + 1, n02, K);
     radixPass(s12, SA12, s, n02, K);
     // find lexicographic names of triples
-    int name = 0, c0 = -1, c1 = -1, c2 = -1;
+    int name = 0;
+    int c0 = -1;
+    int c1 = -1;
+    int c2 = -1;
+
     for (int i = 0; i < n02; i++) {
         if (s[SA12[i]] != c0 || s[SA12[i] + 1] != c1 || s[SA12[i] + 2] != c2) {
             name++;
@@ -178,7 +186,7 @@ inline std::vector<int> wordPiece(const std::string_view text,
     int longest_word_vocab = 1;
     int total_length = static_cast<int>(text.size()) + 1;
     for (const auto &t : vocab) {
-        total_length += t.size() + 1;
+        total_length += static_cast<int>(t.size()) + 1;
         longest_word_vocab = std::max(longest_word_vocab, static_cast<int>(t.size()));
     }
     int *S = new int[total_length + 3];
@@ -224,7 +232,7 @@ inline std::vector<int> wordPiece(const std::string_view text,
     int vocab_start_pos = static_cast<int>(text.size()) + 1;
     for (int i = 0; i < static_cast<int>(vocab.size()); i++) {
         who[suf_array_index[vocab_start_pos]] = i;
-        vocab_start_pos += vocab[i].size() + 1;
+        vocab_start_pos += static_cast<int>(vocab[i].size()) + 1;
     }
     auto get_closest = [&lcp, &who, &vocab, longest_word_vocab, total_length]() {
         std::vector<int> result(total_length, -1);
@@ -273,7 +281,7 @@ inline std::vector<int> wordPiece(const std::string_view text,
         }
 
         answer.push_back(matched_word);
-        match_index += vocab[matched_word].size();
+        match_index += static_cast<int>(vocab[matched_word].size());
     }
 
     assert(match_index == static_cast<int>(text.size()));

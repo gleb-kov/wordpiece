@@ -39,7 +39,7 @@ else ()
     )
 endif ()
 
-# clang-tidy -p tests/build tests/tests.cpp tests/runner.cpp -- --std=c++17
+# clang-tidy -p tests/build tests/tests.cpp tests/runner.cpp word_piece.hpp -- --std=c++17
 # clang-format -i --style=file tests/tests.cpp tests/runner.cpp word_piece.hpp
 add_executable(runner runner.cpp)
 add_executable(tests tests.cpp)
