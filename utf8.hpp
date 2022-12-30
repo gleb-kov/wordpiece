@@ -12,7 +12,7 @@ constexpr uint32_t INVALID_UNICODE = 0x0fffffff;
 constexpr uint32_t SPACE_TOKEN = 9601;
 
 bool is_space(uint32_t ch) {
-  return (ch < 256 && std::isspace(ch)) || (ch == SPACE_TOKEN);
+  return (ch < 256 && std::isspace(static_cast<int>(ch))) || (ch == SPACE_TOKEN);
 }
 
 inline bool check_byte(char x) { return (static_cast<uint8_t>(x) & 0xc0u) == 0x80u; }
@@ -38,7 +38,7 @@ inline uint64_t utf_length(char ch) {
   return 0;
 }
 
-inline uint32_t chars_to_utf8(const char* begin, uint64_t size, uint64_t* utf8_len) {
+inline uint32_t chars_to_utf8(const char* begin, int64_t size, uint64_t* utf8_len) {
   uint64_t length = utf_length(begin[0]);
   if (length == 1) {
     *utf8_len = 1;

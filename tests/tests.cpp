@@ -5,6 +5,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include "../word_piece.hpp"
@@ -50,17 +51,17 @@ void assertEq(const std::vector<int> &lhs, const std::vector<int> &rhs, const st
         }
 
         std::cout << "Lhs size: " << lhs.size() << ", rhs size: " << rhs.size() << std::endl;
-        int64_t index = 0;
-        int64_t lhs_size = static_cast<int64_t>(lhs.size());
-        int64_t rhs_size = static_cast<int64_t>(rhs.size());
+        size_t index = 0;
+        size_t lhs_size = lhs.size();
+        size_t rhs_size = rhs.size();
         while (index < lhs_size && index < rhs_size && lhs[index] == rhs[index]) {
             ++index;
         }
         std::cout << "Unmatched index: " << index << std::endl;
         std::cout << "Fragment: " << std::endl;
-        index -= 10;
+        index = (index < 10 ? 0ul : index - 10);
         for (int64_t i = 0; i < 10; i++) {
-            if (0 <= index && (index < lhs_size || index < rhs_size)) {
+            if (index < lhs_size || index < rhs_size) {
                 std::cout << "Index " << index << ", "
                           << (index < lhs_size ? std::to_string(lhs[index]) : "None")
                           << " <> "
@@ -91,27 +92,28 @@ void check(const std::string &s, const std::vector<std::string> &vocab, bool ver
         auto fast_ts = between_ts - start_ts;
         auto naive_ts = after_ts - between_ts;
         std::cout << std::fixed << std::setprecision(2) << "Check passed; perf "
-                  << fast_ts / 1'000'000 << "ms"
+                  << fast_ts << "ms"
                   << ", boost is " << static_cast<double>(naive_ts) / static_cast<double>(fast_ts)
                   << " times" << std::endl;
     }
 }
 
-std::string randomString(std::mt19937 &rnd, int string_length) {
+std::string randomString(std::mt19937 &rnd, size_t string_length) {
     static constexpr std::string_view kAllChars = "abcdefghijklmnopqrstuvwxyz";
     std::string result;
     result.reserve(string_length);
-    while (string_length-- > 0) {
-        int index = std::uniform_int_distribution(0, static_cast<int>(kAllChars.size() - 1))(rnd);
+    while (string_length > 0) {
+        --string_length;
+        size_t index = std::uniform_int_distribution<size_t>(0ul, kAllChars.size() - 1)(rnd);
         result.push_back(kAllChars[index]);
     }
     return result;
 }
 
-std::vector<std::string> randomStringSet(std::mt19937 &rnd, int string_count, int max_string_len) {
+std::vector<std::string> randomStringSet(std::mt19937 &rnd, size_t string_count, size_t max_string_len) {
     std::set<std::string> result;
-    while (string_count > static_cast<int>(result.size())) {
-        int len = std::uniform_int_distribution(4, max_string_len)(rnd);
+    while (string_count > result.size()) {
+        size_t len = std::uniform_int_distribution<size_t>(4, max_string_len)(rnd);
         result.insert(randomString(rnd, len));
     }
 
@@ -120,31 +122,31 @@ std::vector<std::string> randomStringSet(std::mt19937 &rnd, int string_count, in
 }
 
 std::string randomStringFromSet(std::mt19937 &rnd,
-                                int string_length,
+                                size_t string_length,
                                 const std::vector<std::string> &string_set) {
     std::string result;
     result.reserve(string_length + 100);
-    const int right_index = static_cast<int>(string_set.size()) - 1;
-    while (string_length > static_cast<int>(result.size())) {
-        int index = std::uniform_int_distribution(0, right_index)(rnd);
+    const size_t right_index = string_set.size() - 1;
+    while (string_length > result.size()) {
+        size_t index = std::uniform_int_distribution<size_t>(0ul, right_index)(rnd);
         result.append(string_set[index]);
     }
     return result;
 }
 
-std::vector<std::string> randomSplit(const std::string &s, std::mt19937 &rnd, int parts) {
-    assert(static_cast<int>(s.size()) >= parts);
-    std::set<int> borders;
-    borders.insert(static_cast<int>(s.size()));
+std::vector<std::string> randomSplit(const std::string &s, std::mt19937 &rnd, size_t parts) {
+    assert(s.size() >= parts);
+    std::set<size_t> borders;
+    borders.insert(s.size());
 
-    while (static_cast<int>(borders.size()) < parts) {
-        int index = std::uniform_int_distribution(1, static_cast<int>(s.size() - 1))(rnd);
+    while (borders.size() < parts) {
+        size_t index = std::uniform_int_distribution<size_t>(1ul, s.size() - 1)(rnd);
         borders.insert(index);
     }
 
     std::set<std::string> result;
-    int start = 0;
-    for (int next_border : borders) {
+    size_t start = 0;
+    for (size_t next_border : borders) {
         result.insert(s.substr(start, next_border - start));
         start = next_border;
     }
@@ -194,16 +196,16 @@ void testUtf8() {
     check("токенизация это круто", {"ток", "крут", "это", "за", "ция"}, std::vector<int>({0, -1, 2, 1, -1}));
 }
 
-void testRandomSplit(int text_len_from,
-                     int text_len_to,
-                     int text_len_step,
-                     int parts_from,
-                     int parts_to,
+void testRandomSplit(size_t text_len_from,
+                     size_t text_len_to,
+                     size_t text_len_step,
+                     size_t parts_from,
+                     size_t parts_to,
                      bool positive,
                      bool verbose = false) {
     std::mt19937 rnd(17);
-    for (int text_len = text_len_from; text_len <= text_len_to; text_len += text_len_step) {
-        for (int parts = std::min(text_len, parts_from); parts <= std::min(text_len, parts_to);
+    for (size_t text_len = text_len_from; text_len <= text_len_to; text_len += text_len_step) {
+        for (size_t parts = std::min(text_len, parts_from); parts <= std::min(text_len, parts_to);
              parts++) {
             if (verbose) {
                 std::cout << "running testRandomSplit, text_len " << text_len << ", vocab_size "
@@ -223,18 +225,18 @@ void testRandomSplit(int text_len_from,
     }
 }
 
-void testRandomConcat(int text_len_from,
-                      int text_len_to,
-                      int text_len_step,
-                      int parts_from,
-                      int parts_to,
-                      int max_part_len,
+void testRandomConcat(size_t text_len_from,
+                      size_t text_len_to,
+                      size_t text_len_step,
+                      size_t parts_from,
+                      size_t parts_to,
+                      size_t max_part_len,
                       bool positive,
                       bool verbose = false) {
     std::mt19937 rnd(17);
 
-    for (int text_len = text_len_from; text_len <= text_len_to; text_len += text_len_step) {
-        for (int parts = std::min(text_len, parts_from); parts <= std::min(text_len, parts_to);
+    for (size_t text_len = text_len_from; text_len <= text_len_to; text_len += text_len_step) {
+        for (size_t parts = std::min(text_len, parts_from); parts <= std::min(text_len, parts_to);
              parts++) {
             if (verbose) {
                 std::cout << "running testRandomConcat, text_len " << text_len << ", vocab_size "

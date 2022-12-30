@@ -15,33 +15,32 @@
 inline std::vector<int> naiveTokenization(const std::vector<uint32_t> &text,
                                           const std::vector<std::vector<uint32_t>> &vocab,
                                           int unk_token_id) {
-    const int text_size = static_cast<int>(text.size());
     std::unordered_map<vkcom::VectorSegment, int> word_to_id;
-    int max_len = 0;
-    for (int i = 0; i < static_cast<int>(vocab.size()); i++) {
+    size_t max_len = 0;
+    for (size_t i = 0; i < vocab.size(); i++) {
         assert(!vocab[i].empty());
         assert(word_to_id.count(vocab[i]) == 0);
         vkcom::VectorSegment segment(vocab[i]);
-        word_to_id[segment] = i;
-        max_len = std::max(max_len, static_cast<int>(vocab[i].size()));
+        word_to_id[segment] = static_cast<int>(i);
+        max_len = std::max(max_len, vocab[i].size());
     }
-    max_len = std::min(max_len, text_size);
+    max_len = std::min(max_len, text.size());
 
     std::vector<int> token_ids;
-    token_ids.reserve(text_size / max_len + 1);
+    token_ids.reserve(text.size() / max_len + 1);
 
-    int start = 0;
+    size_t start = 0;
 
-    while (start != text_size) {
-        const int len = std::min(max_len, text_size - start);
-        std::vector<uint32_t> test{text.begin() + start, text.begin() + start + len};
+    while (start < text.size()) {
+        const size_t len = std::min(max_len, text.size() - start);
+        std::vector<uint32_t> test{text.begin() + static_cast<int64_t>(start), text.begin() + static_cast<int64_t>(start + len)};
 
         while (!test.empty()) {
             vkcom::VectorSegment segment(test);
             auto it = word_to_id.find(segment);
             if (it != word_to_id.end()) {
                 token_ids.push_back(it->second);
-                start += static_cast<int>(test.size());
+                start += test.size();
                 break;
             } else {
                 test.pop_back();
@@ -49,16 +48,16 @@ inline std::vector<int> naiveTokenization(const std::vector<uint32_t> &text,
         }
         if (test.empty()) {
             token_ids.push_back(unk_token_id);
-            while (start != text_size && !vkcom::is_space(text[start])) {
+            while (start != text.size() && !vkcom::is_space(text[start])) {
                 ++start;
             }
         }
-        while (start != text_size && vkcom::is_space(text[start])) {
+        while (start != text.size() && vkcom::is_space(text[start])) {
             ++start;
         }
     }
 
-    if (start == static_cast<int>(text_size)) {
+    if (start == text.size()) {
         return token_ids;
     }
 

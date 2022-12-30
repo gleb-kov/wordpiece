@@ -32,7 +32,6 @@ else ()
         -Weverything
         -Wno-missing-prototypes
         -Wno-c++98-compat-pedantic
-        -Wno-sign-conversion
         -Wno-ctad-maybe-unsupported
 
         -fcolor-diagnostics

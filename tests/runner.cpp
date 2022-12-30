@@ -50,6 +50,5 @@ int main(int argc, char *argv[]) {
 
     std::cout << ids.size() << " " << text.size();
     auto ts_finish = word_piece::detail::currentTs();
-    std::cout << "Finished in " << (ts_finish - ts_start) / 1'000'000
-              << "ms (IO " << (ts_after_io - ts_start) / 1'000'000 << "ms)";
+    std::cout << "Finished in " << ts_finish - ts_start << "ms (IO " << ts_after_io - ts_start << "ms)";
 }
