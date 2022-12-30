@@ -15,7 +15,7 @@ TENSORFLOW = 'tensorflow'
 TORCH = 'torch'
 WORD_PIECE = 'word piece'
 
-ALGORITHMS = [HUGGING_FACE, TENSORFLOW, TORCH] # TODO: add NAIVE and WORD_PIECE
+ALGORITHMS = [WORD_PIECE, NAIVE, HUGGING_FACE, TENSORFLOW, TORCH]
 
 # TODO: check
 # https://github.com/pytorch/text/blob/8eb056103cd1d518d53252dd63d3c75f284345ca/benchmark/benchmark_bert_tokenizer.py

@@ -5,3 +5,4 @@ venv/
 .idea/
 .vscode/
 data/
+.DS_store

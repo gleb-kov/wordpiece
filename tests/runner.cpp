@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "../utf8.hpp"
 #include "../word_piece.hpp"
 #include "naive.hpp"
 
@@ -39,12 +40,13 @@ int main(int argc, char *argv[]) {
 
     std::vector<int> ids;
 
-    /*if (mode == "naive") {
+    if (mode == "naive") {
         ids = naiveTokenization(text, vocab);
     } else if (mode == "real") {
         ids = word_piece::wordPiece(text, vocab);
     }
-    std::cout << ids.size();*/
+    std::cout << ids.size() << " " << text.size();
     auto ts_finish = word_piece::detail::currentTs();
-    std::cout << "Finished in " << ts_after_io - ts_start << " " << ts_finish - ts_start;
+    std::cout << "Finished in " << (ts_finish - ts_start) / 1'000'000
+              << "ms (IO " << (ts_after_io - ts_start) / 1'000'000 << "ms)";
 }

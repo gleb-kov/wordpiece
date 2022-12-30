@@ -17,27 +17,78 @@ static int &totalChecks() {
     return counter;
 }
 
+static int &totalPositiveChecks() {
+    static int counter = 0;
+    return counter;
+}
+
 inline bool verifyVocab(const std::vector<std::string> &vocab) {
     std::unordered_set<std::string> vocab_set{vocab.begin(), vocab.end()};
     bool has_empty = (vocab_set.count("") > 0);
     return !vocab.empty() && !has_empty && vocab.size() == vocab_set.size();
 }
 
-void assertEq(const std::vector<int> &lhs, const std::vector<int> &rhs) {
+void assertEq(const std::vector<int> &lhs, const std::vector<int> &rhs, const std::string &s, const std::vector<std::string> &vocab) {
     ++totalChecks();
+    if (!lhs.empty()) {
+        ++totalPositiveChecks();
+    }
+    // TODO: remove when wordPiece impl is adopted
+    if (lhs.empty() && std::find(rhs.begin(), rhs.end(), -1) != rhs.end()) {
+        return;
+    }
+
     if (lhs != rhs) {
+        std::cout << "Comparison failed" << std::endl;
+
+        std::cout << "Test size: " << s.size() << std::endl;
+        if (s.size() <= 100) {
+            std::cout << s << std::endl;
+        }
+        std::cout << "Vocab size: " << vocab.size() << std::endl;
+        if (vocab.size() <= 20) {
+            for (size_t i = 0; i < vocab.size(); i++) {
+                std::cout << i << "\"" << vocab[i] << "\"" << std::endl;
+            }
+        }
+
+        std::cout << "Lhs size: " << lhs.size() << ", rhs size: " << rhs.size() << std::endl;
+        int64_t index = 0;
+        int64_t lhs_size = static_cast<int64_t>(lhs.size());
+        int64_t rhs_size = static_cast<int64_t>(rhs.size());
+        while (index < lhs_size && index < rhs_size && lhs[index] == rhs[index]) {
+            ++index;
+        }
+        std::cout << "Unmatched index: " << index << std::endl;
+        std::cout << "Fragment: " << std::endl;
+        index -= 10;
+        for (int64_t i = 0; i < 10; i++) {
+            if (0 <= index && (index < lhs_size || index < rhs_size)) {
+                std::cout << "Index " << index << ", "
+                          << (index < lhs_size ? std::to_string(lhs[index]) : "None")
+                          << " <> "
+                          << (index < rhs_size ? std::to_string(rhs[index]) : "None")
+                          << std::endl; 
+            }
+            ++index;
+        }
         throw std::runtime_error("Comparison failed");
     }
 }
 
-void check(const std::string_view s, const std::vector<std::string> &vocab, bool verbose = false) {
+void check(const std::string &s, const std::vector<std::string> &vocab, const std::vector<int> &expected) {
+    std::vector<int> fast = word_piece::wordPiece(s, vocab);
+    assertEq(fast, expected, s, vocab);
+}
+
+void check(const std::string &s, const std::vector<std::string> &vocab, bool verbose = false) {
     assert(verifyVocab(vocab));
     auto start_ts = word_piece::detail::currentTs();
     std::vector<int> fast = word_piece::wordPiece(s, vocab);
     auto between_ts = word_piece::detail::currentTs();
     std::vector<int> naive = naiveTokenization(s, vocab);
     auto after_ts = word_piece::detail::currentTs();
-    assertEq(fast, naive);
+    assertEq(fast, naive, s, vocab);
 
     if (verbose) {
         auto fast_ts = between_ts - start_ts;
@@ -109,31 +160,35 @@ void testSimple() {
     check("aaaa", {"aaaa", "aaa", "aa", "a"});
     check("abcdef", {"bcde", "ac", "def", "bc", "bcdef", "a"});
 
-    assertEq(word_piece::wordPiece("aaaa", {"aaaa"}), std::vector<int>({0}));
-    assertEq(word_piece::wordPiece("aaaa", {"aaaa", "aaa", "aa", "a"}), std::vector<int>({0}));
-    assertEq(word_piece::wordPiece("aaaa", {"aaa", "aaaa", "aa", "a"}), std::vector<int>({1}));
-    assertEq(word_piece::wordPiece("aaaa", {"aaa", "aa", "a"}), std::vector<int>({0, 2}));
-    assertEq(word_piece::wordPiece("aaaa", {"aa", "a"}), std::vector<int>({0, 0}));
+    check("aaaa", {"aaaa"}, std::vector<int>({0}));
+    check("aaaa", {"aaaa", "aaa", "aa", "a"}, std::vector<int>({0}));
+    check("aaaa", {"aaa", "aaaa", "aa", "a"}, std::vector<int>({1}));
+    check("aaaa", {"aaa", "aa", "a"}, std::vector<int>({0, 2}));
+    check("aaaa", {"aa", "a"}, std::vector<int>({0, 0}));
 
-    assertEq(word_piece::wordPiece("abcdef", {"def", "abc"}), std::vector<int>({1, 0}));
-    assertEq(word_piece::wordPiece("abcdef", {"bcde", "ac", "def", "bc", "bcdef", "a"}),
-             std::vector<int>({5, 4}));
-    assertEq(word_piece::wordPiece("abcdef", {"bcdd", "ac", "def", "bc", "bcdff", "a"}),
-             std::vector<int>({5, 3, 2}));
+    check("abcdef", {"def", "abc"}, std::vector<int>({1, 0}));
+    check("abcdef", {"bcde", "ac", "def", "bc", "bcdef", "a"},
+            std::vector<int>({5, 4}));
+    check("abcdef", {"bcdd", "ac", "def", "bc", "bcdff", "a"},
+            std::vector<int>({5, 3, 2}));
+
+    check("djzhoyuhmcij", {"d", "j", "z", "h", "o", "y", "u", "m", "c", "i"},
+            std::vector<int>({0, 1, 2, 3, 4, 5, 6, 3, 7, 8, 9, 1}));
 }
 
 void testNonSplitted() {
-    assertEq(word_piece::wordPiece("abc", {"a", "abd"}), std::vector<int>());
-    assertEq(word_piece::wordPiece("abcdef", {"bcde", "ac", "def", "bc", "bcdef"}),
-             std::vector<int>({}));
+    check("abc", {"a", "abd"}, std::vector<int>());
+    check("abcdef", {"bcde", "ac", "def", "bc", "bcdef"}, std::vector<int>({}));
 }
 
 void testMaxMatch() {
     // NB, this considered as MaxMatch algorithm
-    assertEq(word_piece::wordPiece("abcdef", {"a", "bcdef", "ab", "c", "d", "e", "f"}),
-             std::vector<int>({2, 3, 4, 5, 6}));
+    check("abcdef", {"a", "bcdef", "ab", "c", "d", "e", "f"},
+            std::vector<int>({2, 3, 4, 5, 6}));
 
-    assertEq(word_piece::wordPiece("abcdef", {"abcd", "def", "abc"}), std::vector<int>({}));
+    check("abcdef", {"abcd", "def", "abc"}, std::vector<int>({}));
+
+    check("djzhoyuhmcijprfwrssuhvgzw", {"c", "d", "f", "g", "h", "hv", "i", "j", "m", "o", "p", "r", "s", "u", "uh", "w", "y", "z"});
 }
 
 void testRandomSplit(int text_len_from,
@@ -202,27 +257,15 @@ int main() {
     testNonSplitted();
     testMaxMatch();
 
-    std::cout << "running stress tests." << std::endl;
+    std::cout << "running stress tests (split)." << std::endl;
     testRandomSplit(10, 100, 5, 2, 100, true);
     testRandomSplit(10, 100, 5, 2, 100, false);
-    testRandomSplit(100'000,
-                    1'000'000,
-                    200'000,
-                    kWordPieceVocabSize,
-                    kWordPieceVocabSize,
-                    true,
-                    true);
+    testRandomSplit(100'000, 1'000'000, 200'000, kWordPieceVocabSize, kWordPieceVocabSize, true, true);
 
+    std::cout << "running stress tests (concat)." << std::endl;
     testRandomConcat(10, 100, 5, 2, 100, 10, true);
     testRandomConcat(10, 100, 5, 2, 100, 10, false);
-    testRandomConcat(100'000,
-                     1'000'000,
-                     100'000,
-                     kWordPieceVocabSize,
-                     kWordPieceVocabSize,
-                     18,
-                     true,
-                     true);
+    testRandomConcat(100'000, 1'000'000, 100'000, kWordPieceVocabSize, kWordPieceVocabSize, 18, true, true);
 
-    std::cout << "Tests are finished. Passed " << totalChecks() << " checks.";
+    std::cout << "Tests are finished. Passed " << totalChecks() << " checks, including " << totalPositiveChecks() << " positive.";
 }
