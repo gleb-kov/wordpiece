@@ -27,8 +27,8 @@ inline std::vector<int> naiveTokenization(const std::vector<uint32_t> &text,
     }
     max_len = std::min(max_len, text_size);
 
-    std::vector<int> tokens;
-    tokens.reserve(text_size / max_len + 1);
+    std::vector<int> token_ids;
+    token_ids.reserve(text_size / max_len + 1);
 
     int start = 0;
 
@@ -40,7 +40,7 @@ inline std::vector<int> naiveTokenization(const std::vector<uint32_t> &text,
             vkcom::VectorSegment segment(test);
             auto it = word_to_id.find(segment);
             if (it != word_to_id.end()) {
-                tokens.push_back(it->second);
+                token_ids.push_back(it->second);
                 start += static_cast<int>(test.size());
                 break;
             } else {
@@ -48,7 +48,7 @@ inline std::vector<int> naiveTokenization(const std::vector<uint32_t> &text,
             }
         }
         if (test.empty()) {
-            tokens.push_back(unk_token_id);
+            token_ids.push_back(unk_token_id);
             while (start != text_size && !vkcom::is_space(text[start])) {
                 ++start;
             }
@@ -59,7 +59,7 @@ inline std::vector<int> naiveTokenization(const std::vector<uint32_t> &text,
     }
 
     if (start == static_cast<int>(text_size)) {
-        return tokens;
+        return token_ids;
     }
 
     return {};

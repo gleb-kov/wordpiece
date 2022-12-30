@@ -11,6 +11,7 @@
 #include "naive.hpp"
 
 static constexpr int kWordPieceVocabSize = 30'000;
+static constexpr int kUnkTokenId = -1;
 
 static int &totalChecks() {
     static int counter = 0;
@@ -30,12 +31,8 @@ inline bool verifyVocab(const std::vector<std::string> &vocab) {
 
 void assertEq(const std::vector<int> &lhs, const std::vector<int> &rhs, const std::string &s, const std::vector<std::string> &vocab) {
     ++totalChecks();
-    if (!lhs.empty()) {
+    if (std::find(lhs.begin(), lhs.end(), kUnkTokenId) != lhs.end()) {
         ++totalPositiveChecks();
-    }
-    // TODO: remove when wordPiece impl is adopted
-    if (lhs.empty() && std::find(rhs.begin(), rhs.end(), -1) != rhs.end()) {
-        return;
     }
 
     if (lhs != rhs) {
@@ -77,16 +74,16 @@ void assertEq(const std::vector<int> &lhs, const std::vector<int> &rhs, const st
 }
 
 void check(const std::string &s, const std::vector<std::string> &vocab, const std::vector<int> &expected) {
-    std::vector<int> fast = word_piece::wordPiece(s, vocab);
+    std::vector<int> fast = word_piece::wordPiece(s, vocab, kUnkTokenId);
     assertEq(fast, expected, s, vocab);
 }
 
 void check(const std::string &s, const std::vector<std::string> &vocab, bool verbose = false) {
     assert(verifyVocab(vocab));
     auto start_ts = word_piece::detail::currentTs();
-    std::vector<int> fast = word_piece::wordPiece(s, vocab);
+    std::vector<int> fast = word_piece::wordPiece(s, vocab, kUnkTokenId);
     auto between_ts = word_piece::detail::currentTs();
-    std::vector<int> naive = naiveTokenization(s, vocab);
+    std::vector<int> naive = naiveTokenization(s, vocab, kUnkTokenId);
     auto after_ts = word_piece::detail::currentTs();
     assertEq(fast, naive, s, vocab);
 
@@ -177,8 +174,8 @@ void testSimple() {
 }
 
 void testNonSplitted() {
-    check("abc", {"a", "abd"}, std::vector<int>());
-    check("abcdef", {"bcde", "ac", "def", "bc", "bcdef"}, std::vector<int>({}));
+    check("abc", {"a", "abd"}, std::vector<int>({0, -1}));
+    check("abcdef", {"bcde", "ac", "def", "bc", "bcdef"}, std::vector<int>({-1}));
 }
 
 void testMaxMatch() {
@@ -186,9 +183,15 @@ void testMaxMatch() {
     check("abcdef", {"a", "bcdef", "ab", "c", "d", "e", "f"},
             std::vector<int>({2, 3, 4, 5, 6}));
 
-    check("abcdef", {"abcd", "def", "abc"}, std::vector<int>({}));
+    check("abcdef", {"abcd", "def", "abc"}, std::vector<int>({0, -1}));
 
     check("djzhoyuhmcijprfwrssuhvgzw", {"c", "d", "f", "g", "h", "hv", "i", "j", "m", "o", "p", "r", "s", "u", "uh", "w", "y", "z"});
+}
+
+void testUtf8() {
+    check("привет мир", {"привет", "мир"}, std::vector<int>({0, 1}));
+    check("привет мир", {"при", "вет", "мир"}, std::vector<int>({0, 1, 2}));
+    check("токенизация это круто", {"ток", "крут", "это", "за", "ция"}, std::vector<int>({0, -1, 2, 1, -1}));
 }
 
 void testRandomSplit(int text_len_from,
@@ -256,6 +259,7 @@ int main() {
     testSimple();
     testNonSplitted();
     testMaxMatch();
+    testUtf8();
 
     std::cout << "running stress tests (split)." << std::endl;
     testRandomSplit(10, 100, 5, 2, 100, true);
@@ -265,7 +269,7 @@ int main() {
     std::cout << "running stress tests (concat)." << std::endl;
     testRandomConcat(10, 100, 5, 2, 100, 10, true);
     testRandomConcat(10, 100, 5, 2, 100, 10, false);
-    testRandomConcat(100'000, 1'000'000, 100'000, kWordPieceVocabSize, kWordPieceVocabSize, 18, true, true);
+    testRandomConcat(100'000, 1'000'000, 200'000, kWordPieceVocabSize, kWordPieceVocabSize, 18, true, true);
 
     std::cout << "Tests are finished. Passed " << totalChecks() << " checks, including " << totalPositiveChecks() << " positive.";
 }

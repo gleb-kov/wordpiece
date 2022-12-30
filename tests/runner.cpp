@@ -44,7 +44,10 @@ int main(int argc, char *argv[]) {
         ids = naiveTokenization(text, vocab);
     } else if (mode == "real") {
         ids = word_piece::wordPiece(text, vocab);
+    } else {
+        throw std::runtime_error("Unknown mode");
     }
+
     std::cout << ids.size() << " " << text.size();
     auto ts_finish = word_piece::detail::currentTs();
     std::cout << "Finished in " << (ts_finish - ts_start) / 1'000'000

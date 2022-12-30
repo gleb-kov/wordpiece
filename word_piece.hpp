@@ -6,11 +6,14 @@
 #include <chrono>
 #include <cstring>
 #include <fstream>
+#include <numeric>
 #include <string>
 #include <string_view>
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+#include "utf8.hpp"
 
 namespace word_piece {
 
@@ -24,20 +27,23 @@ inline int64_t currentTs() {
 
 namespace suf_array3n {
 
-inline bool leq(int a1, int a2, int b1, int b2) { return (a1 < b1 || (a1 == b1 && a2 <= b2)); }
+template <typename Char>
+inline bool leq(Char a1, int a2, Char b1, int b2) { return (a1 < b1 || (a1 == b1 && a2 <= b2)); }
 
-inline bool leq(int a1, int a2, int a3, int b1, int b2, int b3) {
+template <typename Char>
+inline bool leq(Char a1, Char a2, int a3, Char b1, Char b2, int b3) {
     return (a1 < b1 || (a1 == b1 && leq(a2, a3, b2, b3)));
 }
 
-// stably sort a[0..n-1] to b[0..n-1] with keys in 0..K from r
-inline void radixPass(int *a, int *b, int *r, int n, int K) { // count occurrences
-    int *c = new int[K + 1];                                  // counter array
-    std::memset(c, 0, K * sizeof(int));
+// stably sort a[0..n-1] to b[0..n-1] with keys in 0..alphabet_size from r
+template <typename Char>
+inline void radixPass(int *a, int *b, Char *r, int n, uint32_t alphabet_size) { // count occurrences
+    int *c = new int[alphabet_size + 1];                                  // counter array
+    std::memset(c, 0, alphabet_size * sizeof(int));
     for (int i = 0; i < n; i++) {
         c[r[a[i]]]++; // count occurrences
     }
-    for (int i = 0, sum = 0; i <= K; i++) { // exclusive prefix sums
+    for (uint32_t i = 0, sum = 0; i <= alphabet_size; i++) { // exclusive prefix sums
         int t = c[i];
         c[i] = sum;
         sum += t;
@@ -48,9 +54,10 @@ inline void radixPass(int *a, int *b, int *r, int n, int K) { // count occurrenc
     delete[] c;
 }
 
-// find the suffix array SA of s[0..n-1] in {1..K}?n
+// find the suffix array SA of s[0..n-1] in {1..alphabet_size}?n
 // require s[n]=s[n+1]=s[n+2]=0, n>=2
-inline void suffixArray(int *s, int *SA, int n, int K) {
+template <typename Char>
+inline void suffixArray(Char *s, int *SA, int n, uint32_t alphabet_size) {
     int n0 = (n + 2) / 3;
     int n1 = (n + 1) / 3;
     int n2 = n / 3;
@@ -74,14 +81,14 @@ inline void suffixArray(int *s, int *SA, int n, int K) {
         }
     }
     // lsb radix sort the mod 1 and mod 2 triples
-    radixPass(s12, SA12, s + 2, n02, K);
-    radixPass(SA12, s12, s + 1, n02, K);
-    radixPass(s12, SA12, s, n02, K);
+    radixPass(s12, SA12, s + 2, n02, alphabet_size);
+    radixPass(SA12, s12, s + 1, n02, alphabet_size);
+    radixPass(s12, SA12, s, n02, alphabet_size);
     // find lexicographic names of triples
     int name = 0;
-    int c0 = -1;
-    int c1 = -1;
-    int c2 = -1;
+    Char c0 = std::is_signed_v<Char> ? std::numeric_limits<Char>::max() : -1;
+    Char c1 = c0;
+    Char c2 = c1;
 
     for (int i = 0; i < n02; i++) {
         if (s[SA12[i]] != c0 || s[SA12[i] + 1] != c1 || s[SA12[i] + 2] != c2) {
@@ -111,7 +118,7 @@ inline void suffixArray(int *s, int *SA, int n, int K) {
             s0[j++] = 3 * SA12[i];
         }
     }
-    radixPass(s0, SA0, s, n0, K);
+    radixPass(s0, SA0, s, n0, alphabet_size);
     // merge sorted SA0 suffixes and sorted SA12 suffixes
     for (int p = 0, t = n0 - n1, k = 0; k < n; k++) {
 #define GetI() (SA12[t] < n0 ? SA12[t] * 3 + 1 : (SA12[t] - n0) * 3 + 2)
@@ -151,14 +158,14 @@ inline void suffixArray(int *s, int *SA, int n, int K) {
 } // namespace suf_array3n
 
 inline std::vector<int>
-calcLcp(const int *s, const int *suf_a, const std::vector<int> &suf_array_index) {
+calcLcp(const uint32_t *str, const int *suf_a, const std::vector<int> &suf_array_index) {
     auto n = static_cast<int>(suf_array_index.size());
     std::vector<int> lcp(n);
     int k = 0;
     for (int i = 0; i < n; i++) {
         if (suf_array_index[i] != n - 1) {
             while (std::max(i + k, suf_a[suf_array_index[i] + 1] + k) < n
-                   && s[i + k] == s[suf_a[suf_array_index[i] + 1] + k]) {
+                   && str[i + k] == str[suf_a[suf_array_index[i] + 1] + k]) {
                 k++;
             }
             lcp[suf_array_index[i]] = k;
@@ -178,8 +185,9 @@ calcLcp(const int *s, const int *suf_a, const std::vector<int> &suf_array_index)
 // requires ts to have distinct strings
 // if s=(t_i1, t_i2, .. t_ik) returns (i1, i2, .. ik)
 // returns {} if greedy fails
-inline std::vector<int> wordPiece(const std::string_view text,
-                                  const std::vector<std::string> &vocab) {
+inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
+                                  const std::vector<std::vector<uint32_t>> &vocab,
+                                  int unk_token_id) {
     if (text.empty()) {
         return {};
     }
@@ -189,23 +197,21 @@ inline std::vector<int> wordPiece(const std::string_view text,
         total_length += static_cast<int>(t.size()) + 1;
         longest_word_vocab = std::max(longest_word_vocab, static_cast<int>(t.size()));
     }
-    int *S = new int[total_length + 3];
-    int alphabet_size = 1;
+    uint32_t *S = new uint32_t[total_length + 3];
+    uint32_t alphabet_size = 1;
 
     {
         // elements of s and ts must be > 1, so for example use c - 'a' + 2
         int pos = 0;
-        for (char c : text) {
-            int alpha = c - 'a' + 2;
-            S[pos++] = alpha;
-            alphabet_size = std::max(alphabet_size, alpha);
+        for (uint32_t c : text) {
+            S[pos++] = c;
+            alphabet_size = std::max(alphabet_size, c);
         }
         S[pos++] = 1;
-        for (const std::string_view word : vocab) {
-            for (char c : word) {
-                int alpha = c - 'a' + 2;
-                S[pos++] = alpha;
-                alphabet_size = std::max(alphabet_size, alpha);
+        for (const std::vector<uint32_t> &word : vocab) {
+            for (uint32_t c : word) {
+                S[pos++] = c;
+                alphabet_size = std::max(alphabet_size, c);
             }
             S[pos++] = 1;
         }
@@ -213,10 +219,8 @@ inline std::vector<int> wordPiece(const std::string_view text,
     }
 
     S[total_length] = S[total_length + 1] = S[total_length + 2] = 0;
-    // int64_t before = currentTs();
     int *suf = new int[total_length + 3];
     detail::suf_array3n::suffixArray(S, suf, total_length, alphabet_size);
-    // std::cout << "sufarray built in " << currentTs() - before << '\n';
 
     std::vector<int> suf_array_index(total_length);
     for (int i = 0; i < total_length; i++) {
@@ -262,30 +266,49 @@ inline std::vector<int> wordPiece(const std::string_view text,
     std::reverse(lcp.begin(), lcp.end());
     std::vector<int> R = get_closest();
 
-    std::vector<int> answer;
-    answer.reserve(text.size() / ((total_length - text.size()) / vocab.size()));
+    std::vector<int> token_ids;
+    token_ids.reserve(text.size() / ((total_length - text.size()) / vocab.size()));
 
+    const int text_size = static_cast<int>(text.size());
     int match_index = 0;
-    while (match_index < static_cast<int>(text.size())) {
+    while (match_index < text_size) {
         int id = suf_array_index[match_index];
         int x = L[id];
         int y = R[total_length - 1 - id];
-        int matched_word = -1;
+        int token_id = -1;
 
-        if (x != -1 && y != -1) {
-            matched_word = vocab[x].size() > vocab[y].size() ? x : y;
-        } else if (x != -1 || y != -1) {
-            matched_word = std::max(x, y);
+        if (x != -1 || y != -1) {
+            if (x != -1 && y != -1) {
+                token_id = vocab[x].size() > vocab[y].size() ? x : y;
+            } else {
+                token_id = std::max(x, y);
+            }
+            token_ids.push_back(token_id);
+            match_index += static_cast<int>(vocab[token_id].size());
         } else {
-            return {};
+            token_ids.push_back(unk_token_id);
+            while (match_index != text_size && !vkcom::is_space(text[match_index])) {
+                ++match_index;
+            }
         }
-
-        answer.push_back(matched_word);
-        match_index += static_cast<int>(vocab[matched_word].size());
+        while (match_index != text_size && vkcom::is_space(text[match_index])) {
+            ++match_index;
+        }
     }
 
     assert(match_index == static_cast<int>(text.size()));
-    return answer;
+    return token_ids;
+}
+
+inline std::vector<int> wordPiece(const std::string &text,
+                                  const std::vector<std::string> &vocab,
+                                  int unk_token_id = -1) {
+    std::vector<uint32_t> text_utf8 = vkcom::decode_utf8(text);
+    std::vector<std::vector<uint32_t>> vocab_utf8(vocab.size());
+    for (size_t i = 0; i < vocab.size(); i++) {
+        vocab_utf8[i] = vkcom::decode_utf8(vocab[i]);
+    }
+    return wordPiece(text_utf8, vocab_utf8, unk_token_id);
 }
 
 } // namespace word_piece
