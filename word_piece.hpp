@@ -2,12 +2,14 @@
 #define WORD_PIECE_H
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <cstring>
 #include <numeric>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -27,19 +29,120 @@ namespace suf_array3n {
 
 // http://www.cs.cmu.edu/~guyb/paralg/papers/KarkkainenSanders03.pdf
 
+// always_inline?
 template <typename Char, typename Count>
-inline bool leq(Char a1, Count a2, Char b1, Count b2) { return (a1 < b1 || (a1 == b1 && a2 <= b2)); }
+inline bool leq(Char a1, Count a2, Char b1, Count b2) {
+    return (a1 < b1 || (a1 == b1 && a2 <= b2));
+}
 
+// always_inline?
 template <typename Char, typename Count>
 inline bool leq(Char a1, Char a2, Count a3, Char b1, Char b2, Count b3) {
     return (a1 < b1 || (a1 == b1 && leq(a2, a3, b2, b3)));
 }
 
+template <typename Char, typename Count>
+class RadixPassSolver {
+public:
+    explicit RadixPassSolver(size_t alphabet_size) {
+        size_t thread_count = static_cast<size_t>(std::thread::hardware_concurrency());
+        if (thread_count == 0) {
+            thread_count = 8;
+        }
+        threads_.reserve(thread_count);
+        count_.assign(thread_count + 1, std::vector<Count>(alphabet_size + 1, 0));
+    }
+
+    // stably sort a[0..n-1] to b[0..n-1] with keys in 0..alphabet_size from r
+    void sort(Count *a, Count *b, Char *r, size_t n, size_t alphabet_size) {
+        if (count_[0].size() < alphabet_size + 1) {
+            for (size_t i = 0; i < count_.size(); i++){
+                count_[i].assign(alphabet_size + 1, 0);
+            }
+        } else {
+            for (size_t i = 0; i < count_.size(); i++) {
+                std::memset(count_[i].data(), 0, (alphabet_size + 1) * sizeof(Count));
+            }
+        }
+
+        if (n <= kWorkBatch) {
+            // single thread sort
+            fillCount(1, a, r, 0, n);
+            makePrefixSum(alphabet_size);
+            sortImpl(a, b, r, 0, n);
+        } else {
+            const size_t thread_cnt = std::min(threads_.size(), n / kWorkBatch);
+            const size_t work_batch = n / thread_cnt;
+            (void)(work_batch);
+            fillCount(1, a, r, 0, n);
+            makePrefixSum(alphabet_size);
+            sortImpl(a, b, r, 0, n);
+        }
+    }
+
+    ~RadixPassSolver() {
+        for (std::thread &t : threads_) {
+            t.join();
+        }
+    }
+
+private:
+    void fillCount(size_t thread_id, Count *a, Char *r, size_t begin, size_t end) {
+        auto &count = count_[thread_id];
+        for (size_t i = begin; i < end; i++) {
+            count[r[a[i]]]++;
+        }
+    }
+
+    void makePrefixSum(size_t alphabet_size) {
+        Count sum = 0;
+        for (size_t i = 0; i <= alphabet_size; i++) { // exclusive prefix sums
+            Count item_count = 0;
+            for (size_t j = 1; j < count_.size(); j++) {
+                item_count += count_[j][i];
+            }
+            count_[0][i] = sum;
+            sum += item_count;
+        }
+    }
+
+    void sortImpl(Count *a, Count *b, Char *r, size_t begin, size_t end) {
+        auto &count = count_[0];
+        for (size_t i = begin; i < end; i++) {
+            b[count[r[a[i]]]++] = a[i];
+        }
+    }
+
+private:
+    static constexpr size_t kWorkBatch = 2'500'000;
+    enum WorkType : int {
+        Idle,
+        FillCount,
+        Sort,
+    };
+
+    struct Work {
+        WorkType type;
+        size_t begin;
+        size_t end;
+    };
+
+
+    std::vector<std::vector<Count>> count_;
+    std::vector<std::thread> threads_;
+};
+
 // stably sort a[0..n-1] to b[0..n-1] with keys in 0..alphabet_size from r
 template <typename Char, typename Count>
 inline void radixPass(Count *a, Count *b, Char *r, size_t n, size_t alphabet_size) {
-    Count *count = new Count[alphabet_size + 1];
-    std::memset(count, 0, alphabet_size * sizeof(Count));
+    static RadixPassSolver<Char, Count> solver(alphabet_size);
+    solver.sort(a, b, r, n, alphabet_size);
+}
+
+// stably sort a[0..n-1] to b[0..n-1] with keys in 0..alphabet_size from r
+template <typename Char, typename Count>
+inline void radixPass_(Count *a, Count *b, Char *r, size_t n, size_t alphabet_size) {
+    std::vector<Count> count(alphabet_size + 1, 0);
     for (size_t i = 0; i < n; i++) {
         count[r[a[i]]]++;
     }
@@ -52,7 +155,6 @@ inline void radixPass(Count *a, Count *b, Char *r, size_t n, size_t alphabet_siz
     for (size_t i = 0; i < n; i++) {
         b[count[r[a[i]]]++] = a[i];
     }
-    delete[] count;
 }
 
 // find the suffix array SA of s[0..n-1] in {1..alphabet_size}?n
@@ -73,9 +175,6 @@ inline void suffixArray(Char *s, Count *SA, size_t n, size_t alphabet_size) {
     // generate positions of mod 1 and mod 2 suffixes
     // the "+(n0-n1)" adds a dummy mod 1 suffix if n%3 == 1
 
-    // n%3==0 @ 0 + 0 = 0
-    // n%3==1 @ 1 + (1 - 0) = 2
-    // n%3==2 @ 2 + (1 - 1) = 2
     for (size_t i = 0, j = 0; i < n + static_cast<size_t>(n0 - n1); i++) {
         if (i % 3 != 0) {
             s12[j++] = static_cast<Count>(i);
@@ -190,16 +289,9 @@ calcLcp(const uint32_t *str, const Count *suf_a, const std::vector<Count> &suf_a
 template <typename Count>
 inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
                                   const std::vector<std::vector<uint32_t>> &vocab,
-                                  int unk_token_id) {
-    if (text.empty()) {
-        return {};
-    }
-    size_t longest_word_vocab = 1;
-    size_t total_length = text.size() + 1;
-    for (const std::vector<uint32_t> &word : vocab) {
-        total_length += word.size() + 1;
-        longest_word_vocab = std::max(longest_word_vocab, word.size());
-    }
+                                  int unk_token_id,
+                                  size_t total_length,
+                                  size_t longest_word_vocab) {
     uint32_t *S = new uint32_t[total_length + 3];
     uint32_t alphabet_size = 1;
 
@@ -305,18 +397,26 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
 inline std::vector<int> wordPiece(const std::string &text,
                                   const std::vector<std::string> &vocab,
                                   int unk_token_id = -1) {
+    if (text.empty()) {
+        return {};
+    }
     std::vector<uint32_t> text_utf8 = vkcom::decode_utf8(text);
-    size_t total_length = text_utf8.size() + vocab.size();
     std::vector<std::vector<uint32_t>> vocab_utf8(vocab.size());
+
+    size_t total_length = text_utf8.size() + 1;
+    size_t longest_word_vocab = 1;
+
     for (size_t i = 0; i < vocab.size(); i++) {
         vocab_utf8[i] = vkcom::decode_utf8(vocab[i]);
-        total_length += vocab_utf8[i].size();
+        total_length += vocab_utf8[i].size() + 1;
+        longest_word_vocab = std::max(longest_word_vocab, vocab_utf8[i].size());
     }
+
     // gives 6% speed boost due to cache and alloc optimizations.
     if (total_length < 2'000'000'000) {
-        return wordPiece<int>(text_utf8, vocab_utf8, unk_token_id);
+        return wordPiece<uint32_t>(text_utf8, vocab_utf8, unk_token_id, total_length, longest_word_vocab);
     } else {
-        return wordPiece<size_t>(text_utf8, vocab_utf8, unk_token_id);
+        return wordPiece<size_t>(text_utf8, vocab_utf8, unk_token_id, total_length, longest_word_vocab);
     }
 }
 
