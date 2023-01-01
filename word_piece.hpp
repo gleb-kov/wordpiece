@@ -126,164 +126,56 @@ inline bool leq(Char a1, Char a2, Count a3, Char b1, Char b2, Count b3) {
     return (a1 < b1 || (a1 == b1 && leq(a2, a3, b2, b3)));
 }
 
-template <typename Char, typename Count>
-class RadixPassSolver {
-public:
-    explicit RadixPassSolver(size_t alphabet_size) : common_count_(alphabet_size + 1) {
-        size_t thread_count = static_cast<size_t>(std::thread::hardware_concurrency());
-        if (thread_count == 0) {
-            thread_count = 8;
-        }
-
-        // TODO: check if revese index order is faster
-        per_thread_count_.assign(thread_count, std::vector<Count>(alphabet_size + 1));
-
-        threads_.reserve(thread_count);
-        for (size_t thread_id = 0; thread_id < thread_count; thread_id++) {
-            thread_work_.push_back(Work{false, 0, 0});
-
-            threads_.emplace_back([this, thread_id] {
-                while (true) {
-                    {
-                        std::unique_lock<std::mutex> lock(mutex_);
-                        work_cv_.wait(lock, [this, thread_id]{
-                            return thread_work_[thread_id].active;
-                        });
-                    }
-                    auto &work = thread_work_[thread_id];
-                    fillCount(thread_id, work.begin, work.end);
-
-                    {
-                        std::lock_guard lock(mutex_);
-                        work.active = false;
-                        size_t active = active_thread_count_.fetch_sub(1);
-                        if (active == 1) {
-                            main_cv_.notify_one();
-                        }
-                    }
-                }
-            });
-        }
-    }
-
-    // stably sort a[0..n-1] to b[0..n-1] with keys in 0..alphabet_size from r
-    void sort(Count *a, Count *b, Char *r, size_t n, size_t alphabet_size) {
-        if (common_count_.size() < alphabet_size + 1) {
-            for (size_t i = 0; i < per_thread_count_.size(); i++){
-                per_thread_count_[i].assign(alphabet_size + 1, 0);
-            }
-            common_count_.assign(alphabet_size + 1, 0);
-        } else {
-            for (size_t i = 0; i < per_thread_count_.size(); i++) {
-                std::memset(per_thread_count_[i].data(), 0, (alphabet_size + 1) * sizeof(Count));
-            }
-            std::memset(common_count_.data(), 0, (alphabet_size + 1) * sizeof(Count));
-        }
-
-        work_a_ = a;
-        work_b_ = b;
-        work_r_ = r;
-
-        if (n < 2 * kWorkBatch) {
-            fillCount(0, 0, n);
-            makePrefixSum<true>(alphabet_size);
-            sortImpl(0, n);
-        } else {
-            const size_t thread_cnt = std::min(threads_.size(), n / kWorkBatch);
-            const size_t work_batch = n / thread_cnt + 1;
-
-            {
-                std::unique_lock<std::mutex> lock(mutex_);
-                size_t work_start = 0;
-                for (size_t i = 0; i < thread_cnt; i++) {
-                    thread_work_[i].begin = work_start;
-                    work_start = std::min(n, work_start + work_batch);
-                    thread_work_[i].end = work_start;
-                    thread_work_[i].active = true;
-                }
-                active_thread_count_ = thread_cnt;
-                work_cv_.notify_all();
-                if (active_thread_count_ != 0) {
-                    main_cv_.wait(lock, [this] {
-                        return active_thread_count_ == 0;
-                    });
-                }
-            }
-            makePrefixSum<false>(alphabet_size);
-            // auto t2 = detail::currentTs();
-            // TODO: parallel
-            sortImpl(0, n);
-            // auto t3 = detail::currentTs();
-            // std::cout << "si " << n << ' ' << t3 - t2 << std::endl;
-        }
-    }
-
-    ~RadixPassSolver() {
-        for (std::thread &t : threads_) {
-            t.join();
-        }
-    }
-
-private:
-    void fillCount(size_t thread_id, size_t begin, size_t end) {
-        auto &count = per_thread_count_[thread_id];
-        for (size_t i = begin; i < end; i++) {
-            count[work_r_[work_a_[i]]]++;
-        }
-    }
-
-    template <bool kSingleThread>
-    void makePrefixSum(size_t alphabet_size) {
-        Count sum = 0;
-        for (size_t i = 0; i <= alphabet_size; i++) {
-            Count item_count = 0;
-            if constexpr (kSingleThread) {
-                item_count = per_thread_count_[0][i];
-            } else {
-                for (size_t j = 0; j < per_thread_count_.size(); j++) {
-                    item_count += per_thread_count_[j][i];
-                }
-            }
-            common_count_[i] = sum;
-            sum += item_count;
-        }
-    }
-
-    void sortImpl(size_t begin, size_t end) {
-        for (size_t i = begin; i < end; i++) {
-            work_b_[common_count_[work_r_[work_a_[i]]]++] = work_a_[i];
-        }
-    }
-
-private:
-    static constexpr size_t kWorkBatch = 500'000;
-
-    struct Work {
-        bool active;
-        size_t begin;
-        size_t end;
-    };
-
-    std::vector<Count> common_count_;
-    std::vector<std::vector<Count>> per_thread_count_;
-
-    // under mutex
-    std::atomic<size_t> active_thread_count_{0};
-    std::vector<Work> thread_work_;
-    Count *work_a_;
-    Count *work_b_;
-    Char *work_r_;
-
-    std::vector<std::thread> threads_;
-    std::mutex mutex_;
-    std::condition_variable main_cv_;
-    std::condition_variable work_cv_;
-};
-
+// stably sort a[0..n-1] to b[0..n-1] with keys in 0..alphabet_size from r
 template <typename Char, typename Count>
 inline void radixPass(Count *a, Count *b, Char *r, size_t n, size_t alphabet_size) {
-    static RadixPassSolver<Char, Count> solver(alphabet_size);
-    solver.sort(a, b, r, n, alphabet_size);
+    static constexpr size_t kWorkBatch = 500'000;
+
+    if (n < 2 * kWorkBatch) {
+        // single threaded
+        std::vector<Count> count(alphabet_size + 1, 0);
+        for (size_t i = 0; i < n; i++) {
+            count[r[a[i]]]++;
+        }
+        Count sum = 0;
+        for (size_t i = 0; i <= alphabet_size; i++) {
+            Count item_count = count[i];
+            count[i] = sum;
+            sum += item_count;
+        }
+        for (size_t i = 0; i < n; i++) {
+            b[count[r[a[i]]]++] = a[i];
+        }
+    } else {
+        const size_t thread_cnt = std::min(detail::globalThreadPool().maxThreads(), n / kWorkBatch);
+        const size_t work_batch = n / thread_cnt + 1;
+        std::vector<std::vector<Count>> per_thread_count(thread_cnt, std::vector<Count>(alphabet_size + 1, 0));
+        size_t work_start = 0;
+        for (size_t thread_id = 0; thread_id < thread_cnt; thread_id++) {
+            size_t work_end = std::min(n, work_start + work_batch);
+            detail::globalThreadPool().submit([thread_id, a, r, work_start, work_end, &per_thread_count]{
+                auto &work = per_thread_count[thread_id];
+                for (size_t i = work_start; i < work_end; i++) {
+                    work[r[a[i]]]++;
+                }
+            });
+            work_start = work_end;
+        }
+        detail::globalThreadPool().waitCompletion();
+        Count sum = 0;
+        auto &count = per_thread_count[0];
+        for (size_t i = 0; i <= alphabet_size; i++) {
+            Count item_count = 0;
+            for (size_t j = 0; j < thread_cnt; j++) {
+                item_count += per_thread_count[j][i];
+            }
+            count[i] = sum;
+            sum += item_count;
+        }
+        for (size_t i = 0; i < n; i++) {
+            b[count[r[a[i]]]++] = a[i];
+        }
+    }
 }
 
 // find the suffix array SA of s[0..n-1] in {1..alphabet_size}?n
@@ -480,11 +372,7 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
         suf_array_index[static_cast<size_t>(suf[i])] = static_cast<Count>(i);
     }
 
-    auto t1 = detail::currentTs();
-    // TODO: parallel
     std::vector<Count> lcp = detail::calcLcp<Count>(S, suf, suf_array_index);
-    auto t2 = detail::currentTs();
-    std::cout << "lcp " << t2 - t1 << std::endl;
     delete[] S;
     delete[] suf;
 
