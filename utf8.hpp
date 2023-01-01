@@ -11,7 +11,7 @@ constexpr uint32_t INVALID_UNICODE = 0x0fffffff;
 
 constexpr uint32_t SPACE_TOKEN = 9601;
 
-bool is_space(uint32_t ch) {
+inline bool is_space(uint32_t ch) {
     return (ch < 256 && std::isspace(static_cast<int>(ch))) || (ch == SPACE_TOKEN);
 }
 
@@ -111,7 +111,7 @@ struct VectorSegment {
 
     VectorSegment(const uint32_t *begin, const uint32_t *end) : begin_(begin), end_(end) {
         hash_ = 0;
-        for (auto it = begin_; it != end_; it++) {
+        for (const uint32_t *it = begin_; it != end_; it++) {
             hash_ = (hash_ * P + *it) % MOD;
         }
     }
