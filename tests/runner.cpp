@@ -41,8 +41,6 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    auto ts_after_io = word_piece::detail::currentTs();
-
     std::vector<int> ids;
 
     if (mode == "naive") {
@@ -55,5 +53,5 @@ int main(int argc, char *argv[]) {
 
     std::cout << ids.size() << " " << text.size();
     auto ts_finish = word_piece::detail::currentTs();
-    std::cout << "Finished in " << ts_finish - ts_start << "ms (IO " << ts_after_io - ts_start << "ms)";
+    std::cout << "Finished in " << ts_finish - ts_start << " ms";
 }

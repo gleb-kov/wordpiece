@@ -15,7 +15,7 @@ TENSORFLOW = 'tensorflow'
 TORCH = 'torch'
 WORD_PIECE = 'word piece'
 
-ALGORITHMS = [WORD_PIECE, NAIVE, HUGGING_FACE, TENSORFLOW, TORCH]
+ALGORITHMS = [TENSORFLOW, TORCH, WORD_PIECE, NAIVE, HUGGING_FACE]
 
 # TODO: check
 # https://github.com/pytorch/text/blob/8eb056103cd1d518d53252dd63d3c75f284345ca/benchmark/benchmark_bert_tokenizer.py
@@ -66,12 +66,14 @@ def run_torch(text_file, vocab_file):
 
 
 def run_word_piece(text_file, vocab_file):
-    rc = os.system(f"./build/runner real {text_file} {vocab_file}")
+    rc = os.system(f"./tests/build/runner real {text_file} {vocab_file}")
+    print(f'{WORD_PIECE} returned {rc}')
     assert rc == 0
     return rc
 
 def run_naive(text_file, vocab_file):
-    rc = os.system(f"./build/runner naive {text_file} {vocab_file}")
+    rc = os.system(f"./tests/build/runner naive {text_file} {vocab_file}")
+    print(f'{NAIVE} returned {rc}')
     assert rc == 0
     return rc
 
@@ -95,20 +97,22 @@ def run_benchmark(text_file, vocab_file):
         before = time.time_ns()
         print(f'Running {algorithm}')
         res = run_algorithm(algorithm, text_file, vocab_file)
-        duration = time.time_ns() - before
-        result.append((duration, algorithm))
+        duration_ms = (time.time_ns() - before) // 1_000_000
+        print(f'{algorithm} finished in {duration_ms} ms')
+        result.append((duration_ms, algorithm))
 
     result = sorted(result)
     return result
 
 
 def cut(source_file, destination_file, text_size_mb):
-    bytes_processed = 0
+    text_size_bytes = text_size_mb * 1_000_000
+    processed_bytes = 0
     with open(source_file, "r") as fin:
         with open(destination_file, "w") as fout:
-            while bytes_processed < text_size_mb * 1_000_000:
+            while processed_bytes < text_size_bytes:
                 line = fin.readline()
-                bytes_processed += len(line.encode())
+                processed_bytes += len(line.encode())
                 fout.write(line)
 
 
@@ -136,6 +140,5 @@ if __name__ == "__main__":
     print("==================================================")
     print("Benchmark is finished.")
     for algo in result:
-        duration_ms = algo[0] // 1_000_000
-        duration_sec = duration_ms / 1000
+        duration_sec = algo[0] / 1000
         print(f'{algo[1]}: {duration_sec:.1f} sec')

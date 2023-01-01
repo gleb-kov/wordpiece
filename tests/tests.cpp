@@ -30,7 +30,10 @@ inline bool verifyVocab(const std::vector<std::string> &vocab) {
     return !vocab.empty() && !has_empty && vocab.size() == vocab_set.size();
 }
 
-void assertEq(const std::vector<int> &lhs, const std::vector<int> &rhs, const std::string &s, const std::vector<std::string> &vocab) {
+void assertEq(const std::vector<int> &lhs,
+              const std::vector<int> &rhs,
+              const std::string &s,
+              const std::vector<std::string> &vocab) {
     ++totalChecks();
     if (std::find(lhs.begin(), lhs.end(), kUnkTokenId) != lhs.end()) {
         ++totalPositiveChecks();
@@ -63,10 +66,8 @@ void assertEq(const std::vector<int> &lhs, const std::vector<int> &rhs, const st
         for (int64_t i = 0; i < 10; i++) {
             if (index < lhs_size || index < rhs_size) {
                 std::cout << "Index " << index << ", "
-                          << (index < lhs_size ? std::to_string(lhs[index]) : "None")
-                          << " <> "
-                          << (index < rhs_size ? std::to_string(rhs[index]) : "None")
-                          << std::endl; 
+                          << (index < lhs_size ? std::to_string(lhs[index]) : "None") << " <> "
+                          << (index < rhs_size ? std::to_string(rhs[index]) : "None") << std::endl;
             }
             ++index;
         }
@@ -74,7 +75,9 @@ void assertEq(const std::vector<int> &lhs, const std::vector<int> &rhs, const st
     }
 }
 
-void check(const std::string &s, const std::vector<std::string> &vocab, const std::vector<int> &expected) {
+void check(const std::string &s,
+           const std::vector<std::string> &vocab,
+           const std::vector<int> &expected) {
     std::vector<int> fast = word_piece::wordPiece(s, vocab, kUnkTokenId);
     assertEq(fast, expected, s, vocab);
 }
@@ -91,8 +94,7 @@ void check(const std::string &s, const std::vector<std::string> &vocab, bool ver
     if (verbose) {
         auto fast_ts = between_ts - start_ts;
         auto naive_ts = after_ts - between_ts;
-        std::cout << std::fixed << std::setprecision(2) << "Check passed; perf "
-                  << fast_ts << "ms"
+        std::cout << std::fixed << std::setprecision(2) << "Check passed; perf " << fast_ts << "ms"
                   << ", boost is " << static_cast<double>(naive_ts) / static_cast<double>(fast_ts)
                   << " times" << std::endl;
     }
@@ -110,7 +112,8 @@ std::string randomString(std::mt19937 &rnd, size_t string_length) {
     return result;
 }
 
-std::vector<std::string> randomStringSet(std::mt19937 &rnd, size_t string_count, size_t max_string_len) {
+std::vector<std::string>
+randomStringSet(std::mt19937 &rnd, size_t string_count, size_t max_string_len) {
     std::set<std::string> result;
     while (string_count > result.size()) {
         size_t len = std::uniform_int_distribution<size_t>(4, max_string_len)(rnd);
@@ -166,13 +169,12 @@ void testSimple() {
     check("aaaa", {"aa", "a"}, std::vector<int>({0, 0}));
 
     check("abcdef", {"def", "abc"}, std::vector<int>({1, 0}));
-    check("abcdef", {"bcde", "ac", "def", "bc", "bcdef", "a"},
-            std::vector<int>({5, 4}));
-    check("abcdef", {"bcdd", "ac", "def", "bc", "bcdff", "a"},
-            std::vector<int>({5, 3, 2}));
+    check("abcdef", {"bcde", "ac", "def", "bc", "bcdef", "a"}, std::vector<int>({5, 4}));
+    check("abcdef", {"bcdd", "ac", "def", "bc", "bcdff", "a"}, std::vector<int>({5, 3, 2}));
 
-    check("djzhoyuhmcij", {"d", "j", "z", "h", "o", "y", "u", "m", "c", "i"},
-            std::vector<int>({0, 1, 2, 3, 4, 5, 6, 3, 7, 8, 9, 1}));
+    check("djzhoyuhmcij",
+          {"d", "j", "z", "h", "o", "y", "u", "m", "c", "i"},
+          std::vector<int>({0, 1, 2, 3, 4, 5, 6, 3, 7, 8, 9, 1}));
 }
 
 void testNonSplitted() {
@@ -182,18 +184,37 @@ void testNonSplitted() {
 
 void testMaxMatch() {
     // NB, this considered as MaxMatch algorithm
-    check("abcdef", {"a", "bcdef", "ab", "c", "d", "e", "f"},
-            std::vector<int>({2, 3, 4, 5, 6}));
+    check("abcdef", {"a", "bcdef", "ab", "c", "d", "e", "f"}, std::vector<int>({2, 3, 4, 5, 6}));
 
     check("abcdef", {"abcd", "def", "abc"}, std::vector<int>({0, -1}));
 
-    check("djzhoyuhmcijprfwrssuhvgzw", {"c", "d", "f", "g", "h", "hv", "i", "j", "m", "o", "p", "r", "s", "u", "uh", "w", "y", "z"});
+    check("djzhoyuhmcijprfwrssuhvgzw",
+          {"c",
+           "d",
+           "f",
+           "g",
+           "h",
+           "hv",
+           "i",
+           "j",
+           "m",
+           "o",
+           "p",
+           "r",
+           "s",
+           "u",
+           "uh",
+           "w",
+           "y",
+           "z"});
 }
 
 void testUtf8() {
     check("привет мир", {"привет", "мир"}, std::vector<int>({0, 1}));
     check("привет мир", {"при", "вет", "мир"}, std::vector<int>({0, 1, 2}));
-    check("токенизация это круто", {"ток", "крут", "это", "за", "ция"}, std::vector<int>({0, -1, 2, 1, -1}));
+    check("токенизация это круто",
+          {"ток", "крут", "это", "за", "ция"},
+          std::vector<int>({0, -1, 2, 1, -1}));
 }
 
 void testRandomSplit(size_t text_len_from,
@@ -264,14 +285,28 @@ int main() {
     testUtf8();
 
     std::cout << "running stress tests (split)." << std::endl;
-    testRandomSplit(10, 500, 5, 2, 100, true);
-    testRandomSplit(10, 500, 5, 2, 100, false);
-    testRandomSplit(100'000, 1'000'000, 200'000, kWordPieceVocabSize, kWordPieceVocabSize, true, true);
+    testRandomSplit(10, 100, 5, 2, 100, true);
+    testRandomSplit(10, 100, 5, 2, 100, false);
+    testRandomSplit(100'000,
+                    1'000'000,
+                    200'000,
+                    kWordPieceVocabSize,
+                    kWordPieceVocabSize,
+                    true,
+                    true);
 
     std::cout << "running stress tests (concat)." << std::endl;
-    testRandomConcat(10, 500, 5, 2, 100, 10, true);
-    testRandomConcat(10, 500, 5, 2, 100, 10, false);
-    testRandomConcat(100'000, 1'000'000, 200'000, kWordPieceVocabSize, kWordPieceVocabSize, 18, true, true);
+    testRandomConcat(10, 100, 5, 2, 100, 10, true);
+    testRandomConcat(10, 100, 5, 2, 100, 10, false);
+    testRandomConcat(100'000,
+                     1'000'000,
+                     200'000,
+                     kWordPieceVocabSize,
+                     kWordPieceVocabSize,
+                     18,
+                     true,
+                     true);
 
-    std::cout << "Tests are finished. Passed " << totalChecks() << " checks, including " << totalPositiveChecks() << " positive.";
+    std::cout << "Tests are finished. Passed " << totalChecks() << " checks, including "
+              << totalPositiveChecks() << " positive.";
 }

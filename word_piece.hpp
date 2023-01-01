@@ -224,8 +224,8 @@ inline void suffixArray(Char *s, Count *SA, size_t n, size_t alphabet_size) {
     Count p = 0;
     for (size_t k = 0, t = static_cast<size_t>(n0 - n1); k < n; k++) {
 #define GetI() (SA12[t] < n0 ? SA12[t] * 3 + 1 : (SA12[t] - n0) * 3 + 2)
-        Count j = SA0[p];    // pos of current offset 0 suffix
-        Count i = GetI();    // pos of current offset 12 suffix
+        Count j = SA0[p];  // pos of current offset 0 suffix
+        Count i = GetI();  // pos of current offset 12 suffix
         if (SA12[t] < n0 ? // different compares for mod 1 and mod 2 suffixes
                 leq(s[i], s12[SA12[t] + n0], s[j], s12[j / 3])
                          : leq(s[i],
@@ -373,7 +373,10 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
         if (x != kNoWord || y != kNoWord) {
             int token_id;
             if (x != kNoWord && y != kNoWord) {
-                token_id = vocab[static_cast<size_t>(x)].size() > vocab[static_cast<size_t>(y)].size() ? x : y;
+                token_id
+                    = vocab[static_cast<size_t>(x)].size() > vocab[static_cast<size_t>(y)].size()
+                        ? x
+                        : y;
             } else {
                 token_id = std::max(x, y);
             }
@@ -394,12 +397,11 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
     return token_ids;
 }
 
-inline std::vector<int> wordPiece(const std::string &text,
-                                  const std::vector<std::string> &vocab,
-                                  int unk_token_id = -1) {
+inline std::vector<int>
+wordPiece(const std::string &text, const std::vector<std::string> &vocab, int unk_token_id = -1) {
     if (text.empty()) {
         return {};
-    }
+    } 
     std::vector<uint32_t> text_utf8 = vkcom::decode_utf8(text);
     std::vector<std::vector<uint32_t>> vocab_utf8(vocab.size());
 
