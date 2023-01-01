@@ -7,8 +7,10 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstring>
+#include <functional>
 #include <mutex>
 #include <numeric>
+#include <queue>
 #include <string>
 #include <thread>
 #include <utility>
@@ -24,6 +26,88 @@ inline int64_t currentTs() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
                std::chrono::system_clock::now().time_since_epoch())
         .count();
+}
+
+class ThreadPool {
+public:
+    using Task = std::function<void()>;
+
+public:
+    ThreadPool() {
+        size_t thread_count = static_cast<size_t>(std::thread::hardware_concurrency());
+        if (thread_count == 0) {
+            thread_count = 8;
+        }
+        for (size_t thread = 0; thread < thread_count; ++thread) {
+            threads_.emplace_back([this] {
+                while (!stop_.load(std::memory_order_relaxed)) {
+                    std::unique_lock<std::mutex> lock(mutex_);
+                    work_cv_.wait(lock, [this] {
+                        return stop_.load(std::memory_order_relaxed) || !task_queue_.empty();
+                    });
+                    if (stop_.load(std::memory_order_relaxed)) {
+                        break;
+                    }
+                    if (task_queue_.empty()) {
+                        continue;
+                    }
+                    ++active_tasks_;
+                    auto task = std::move(task_queue_.front());
+                    task_queue_.pop();
+                    lock.unlock();
+                    task();
+                    lock.lock();
+                    --active_tasks_;
+                    complete_cv_.notify_one();
+                }
+            });
+        }
+    }
+
+    ~ThreadPool() {
+        stop_.store(true, std::memory_order_relaxed);
+        work_cv_.notify_all();
+        for (auto& thread : threads_) {
+            if (thread.joinable()) {
+                thread.join();
+            }
+        }
+    }
+
+    void submit(Task&& task) {
+        {
+            std::lock_guard<std::mutex> lg(mutex_);
+            task_queue_.emplace(std::move(task));
+        }
+        work_cv_.notify_one();
+    }
+
+    void waitCompletion() {
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (active_tasks_ != 0 || !task_queue_.empty()) {
+            complete_cv_.wait(lock, [this]{
+                return active_tasks_ == 0 && task_queue_.empty();
+            });
+        }
+    }
+
+    [[nodiscard]] size_t maxThreads() const noexcept {
+        return threads_.size();
+    }
+
+private:
+    std::atomic<bool> stop_{false};
+    size_t active_tasks_{0};
+    std::mutex mutex_;
+    std::condition_variable work_cv_;
+    std::condition_variable complete_cv_;
+    std::vector<std::thread> threads_;
+    std::queue<Task> task_queue_;
+};
+
+inline ThreadPool &globalThreadPool() {
+    static ThreadPool pool;
+    return pool;
 }
 
 namespace suf_array3n {
@@ -307,14 +391,18 @@ inline void suffixArray(Char *s, Count *SA, size_t n, size_t alphabet_size) {
 } // namespace suf_array3n
 
 template <typename Count>
-inline std::vector<Count>
-calcLcp(const uint32_t *str, const Count *suf_a, const std::vector<Count> &suf_array_index) {
-    std::vector<Count> lcp(suf_array_index.size() - 1);
+inline void calcLcpImpl(const uint32_t *str,
+                        const Count *suf_a,
+                        const std::vector<Count> &suf_array_index,
+                        std::vector<Count> &lcp,
+                        size_t begin,
+                        size_t end) {
     size_t prefix_len = 0;
-    for (size_t i = 0; i < suf_array_index.size(); i++) {
+    for (size_t i = begin; i < end; i++) {
         const size_t sa_index = static_cast<size_t>(suf_array_index[i]);
         if (sa_index + 1 != suf_array_index.size()) {
             const size_t suf_index = static_cast<size_t>(suf_a[sa_index + 1]);
+
             while (std::max(i, suf_index) + prefix_len < suf_array_index.size()
                    && str[i + prefix_len] == str[suf_index + prefix_len]) {
                 prefix_len++;
@@ -325,6 +413,32 @@ calcLcp(const uint32_t *str, const Count *suf_a, const std::vector<Count> &suf_a
             }
         }
     }
+}
+
+template <typename Count>
+inline std::vector<Count>
+calcLcp(const uint32_t *str, const Count *suf_a, const std::vector<Count> &suf_array_index) {
+    static constexpr size_t kWorkBatch = 1'000'000;
+    const size_t total_length = suf_array_index.size();
+
+    std::vector<Count> lcp(total_length - 1);
+
+    if (total_length < 2 * kWorkBatch) {
+        calcLcpImpl(str, suf_a, suf_array_index, lcp, 0, total_length);
+    } else {
+        const size_t thread_cnt = std::min(detail::globalThreadPool().maxThreads(), total_length / kWorkBatch);
+        const size_t work_batch = total_length / thread_cnt + 1;
+        size_t work_start = 0;
+        for (size_t i = 0; i < thread_cnt; i++) {
+            size_t work_end = std::min(total_length, work_start + work_batch);
+            detail::globalThreadPool().submit([str, suf_a, &suf_array_index, &lcp, work_start, work_end]{
+                calcLcpImpl(str, suf_a, suf_array_index, lcp, work_start, work_end);
+            });
+            work_start = work_end;
+        }
+    }
+
+    detail::globalThreadPool().waitCompletion();
 
     return lcp;
 }
@@ -366,11 +480,11 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
         suf_array_index[static_cast<size_t>(suf[i])] = static_cast<Count>(i);
     }
 
-    // auto t1 = detail::currentTs();
+    auto t1 = detail::currentTs();
     // TODO: parallel
     std::vector<Count> lcp = detail::calcLcp<Count>(S, suf, suf_array_index);
-    // auto t2 = detail::currentTs();
-    // std::cout << "lcp " << t2 - t1 << std::endl;
+    auto t2 = detail::currentTs();
+    std::cout << "lcp " << t2 - t1 << std::endl;
     delete[] S;
     delete[] suf;
 
