@@ -1,7 +1,5 @@
 # WordPiece
 
-Single-header library.
-
 ## Алгоритм:
 
 Возьмем строку s#t1#t2#...tk, построим на ней суфмас. Решетки обязательно надо вставить (символ, который не встречается).
@@ -26,11 +24,11 @@ TODO: описание тестов
 
 ## Бенчмарки
 
-Бенчмарк запускался на:
-- OS: Ubuntu 22.04;
-- CPU: 11th Gen Intel Core i5-11400H @ 2.70GHz x12;
-- SSD: SK hynix PC711 256GB (SeqRead 2300 MB/s, SeqWrite 1320 MB/s, RndRead 36mcs, RndWrite 86mcs);
-- RAM: 16GB.
+### Результаты
+
+TODO
+
+### Подготовка
 
 Подготовка для бенчмарка:
 ```bash
@@ -50,5 +48,3 @@ cmake -S tests -B tests/build -DCMAKE_BUILD_TYPE=Release
 ```bash
 source venv/bin/activate && make -C tests/build && python3 tests/benchmark.py data/wiki.txt data/vocab.txt 100
 ```
-
-TODO: полная таблица результатов

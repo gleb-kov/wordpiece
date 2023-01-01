@@ -5,10 +5,11 @@
 #include <atomic>
 #include <cassert>
 #include <chrono>
+#include <condition_variable>
 #include <cstring>
+#include <mutex>
 #include <numeric>
 #include <string>
-#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -44,39 +45,92 @@ inline bool leq(Char a1, Char a2, Count a3, Char b1, Char b2, Count b3) {
 template <typename Char, typename Count>
 class RadixPassSolver {
 public:
-    explicit RadixPassSolver(size_t alphabet_size) {
+    explicit RadixPassSolver(size_t alphabet_size) : common_count_(alphabet_size + 1) {
         size_t thread_count = static_cast<size_t>(std::thread::hardware_concurrency());
         if (thread_count == 0) {
             thread_count = 8;
         }
+
+        // TODO: check if revese index order is faster
+        per_thread_count_.assign(thread_count, std::vector<Count>(alphabet_size + 1));
+
         threads_.reserve(thread_count);
-        count_.assign(thread_count + 1, std::vector<Count>(alphabet_size + 1, 0));
+        for (size_t thread_id = 0; thread_id < thread_count; thread_id++) {
+            thread_work_.push_back(Work{false, 0, 0});
+
+            threads_.emplace_back([this, thread_id] {
+                while (true) {
+                    {
+                        std::unique_lock<std::mutex> lock(mutex_);
+                        work_cv_.wait(lock, [this, thread_id]{
+                            return thread_work_[thread_id].active;
+                        });
+                    }
+                    auto &work = thread_work_[thread_id];
+                    fillCount(thread_id, work.begin, work.end);
+
+                    {
+                        std::lock_guard lock(mutex_);
+                        work.active = false;
+                        size_t active = active_thread_count_.fetch_sub(1);
+                        if (active == 1) {
+                            main_cv_.notify_one();
+                        }
+                    }
+                }
+            });
+        }
     }
 
     // stably sort a[0..n-1] to b[0..n-1] with keys in 0..alphabet_size from r
     void sort(Count *a, Count *b, Char *r, size_t n, size_t alphabet_size) {
-        if (count_[0].size() < alphabet_size + 1) {
-            for (size_t i = 0; i < count_.size(); i++){
-                count_[i].assign(alphabet_size + 1, 0);
+        if (common_count_.size() < alphabet_size + 1) {
+            for (size_t i = 0; i < per_thread_count_.size(); i++){
+                per_thread_count_[i].assign(alphabet_size + 1, 0);
             }
+            common_count_.assign(alphabet_size + 1, 0);
         } else {
-            for (size_t i = 0; i < count_.size(); i++) {
-                std::memset(count_[i].data(), 0, (alphabet_size + 1) * sizeof(Count));
+            for (size_t i = 0; i < per_thread_count_.size(); i++) {
+                std::memset(per_thread_count_[i].data(), 0, (alphabet_size + 1) * sizeof(Count));
             }
+            std::memset(common_count_.data(), 0, (alphabet_size + 1) * sizeof(Count));
         }
 
-        if (n <= kWorkBatch) {
-            // single thread sort
-            fillCount(1, a, r, 0, n);
-            makePrefixSum(alphabet_size);
-            sortImpl(a, b, r, 0, n);
+        work_a_ = a;
+        work_b_ = b;
+        work_r_ = r;
+
+        if (n < 2 * kWorkBatch) {
+            fillCount(0, 0, n);
+            makePrefixSum<true>(alphabet_size);
+            sortImpl(0, n);
         } else {
             const size_t thread_cnt = std::min(threads_.size(), n / kWorkBatch);
-            const size_t work_batch = n / thread_cnt;
-            (void)(work_batch);
-            fillCount(1, a, r, 0, n);
-            makePrefixSum(alphabet_size);
-            sortImpl(a, b, r, 0, n);
+            const size_t work_batch = n / thread_cnt + 1;
+
+            {
+                std::unique_lock<std::mutex> lock(mutex_);
+                size_t work_start = 0;
+                for (size_t i = 0; i < thread_cnt; i++) {
+                    thread_work_[i].begin = work_start;
+                    work_start = std::min(n, work_start + work_batch);
+                    thread_work_[i].end = work_start;
+                    thread_work_[i].active = true;
+                }
+                active_thread_count_ = thread_cnt;
+                work_cv_.notify_all();
+                if (active_thread_count_ != 0) {
+                    main_cv_.wait(lock, [this] {
+                        return active_thread_count_ == 0;
+                    });
+                }
+            }
+            makePrefixSum<false>(alphabet_size);
+            // auto t2 = detail::currentTs();
+            // TODO: parallel
+            sortImpl(0, n);
+            // auto t3 = detail::currentTs();
+            // std::cout << "si " << n << ' ' << t3 - t2 << std::endl;
         }
     }
 
@@ -87,74 +141,65 @@ public:
     }
 
 private:
-    void fillCount(size_t thread_id, Count *a, Char *r, size_t begin, size_t end) {
-        auto &count = count_[thread_id];
+    void fillCount(size_t thread_id, size_t begin, size_t end) {
+        auto &count = per_thread_count_[thread_id];
         for (size_t i = begin; i < end; i++) {
-            count[r[a[i]]]++;
+            count[work_r_[work_a_[i]]]++;
         }
     }
 
+    template <bool kSingleThread>
     void makePrefixSum(size_t alphabet_size) {
         Count sum = 0;
-        for (size_t i = 0; i <= alphabet_size; i++) { // exclusive prefix sums
+        for (size_t i = 0; i <= alphabet_size; i++) {
             Count item_count = 0;
-            for (size_t j = 1; j < count_.size(); j++) {
-                item_count += count_[j][i];
+            if constexpr (kSingleThread) {
+                item_count = per_thread_count_[0][i];
+            } else {
+                for (size_t j = 0; j < per_thread_count_.size(); j++) {
+                    item_count += per_thread_count_[j][i];
+                }
             }
-            count_[0][i] = sum;
+            common_count_[i] = sum;
             sum += item_count;
         }
     }
 
-    void sortImpl(Count *a, Count *b, Char *r, size_t begin, size_t end) {
-        auto &count = count_[0];
+    void sortImpl(size_t begin, size_t end) {
         for (size_t i = begin; i < end; i++) {
-            b[count[r[a[i]]]++] = a[i];
+            work_b_[common_count_[work_r_[work_a_[i]]]++] = work_a_[i];
         }
     }
 
 private:
-    static constexpr size_t kWorkBatch = 2'500'000;
-    enum WorkType : int {
-        Idle,
-        FillCount,
-        Sort,
-    };
+    static constexpr size_t kWorkBatch = 500'000;
 
     struct Work {
-        WorkType type;
+        bool active;
         size_t begin;
         size_t end;
     };
 
+    std::vector<Count> common_count_;
+    std::vector<std::vector<Count>> per_thread_count_;
 
-    std::vector<std::vector<Count>> count_;
+    // under mutex
+    std::atomic<size_t> active_thread_count_{0};
+    std::vector<Work> thread_work_;
+    Count *work_a_;
+    Count *work_b_;
+    Char *work_r_;
+
     std::vector<std::thread> threads_;
+    std::mutex mutex_;
+    std::condition_variable main_cv_;
+    std::condition_variable work_cv_;
 };
 
-// stably sort a[0..n-1] to b[0..n-1] with keys in 0..alphabet_size from r
 template <typename Char, typename Count>
 inline void radixPass(Count *a, Count *b, Char *r, size_t n, size_t alphabet_size) {
     static RadixPassSolver<Char, Count> solver(alphabet_size);
     solver.sort(a, b, r, n, alphabet_size);
-}
-
-// stably sort a[0..n-1] to b[0..n-1] with keys in 0..alphabet_size from r
-template <typename Char, typename Count>
-inline void radixPass_(Count *a, Count *b, Char *r, size_t n, size_t alphabet_size) {
-    std::vector<Count> count(alphabet_size + 1, 0);
-    for (size_t i = 0; i < n; i++) {
-        count[r[a[i]]]++;
-    }
-    Count sum = 0;
-    for (size_t i = 0; i <= alphabet_size; i++) { // exclusive prefix sums
-        Count t = count[i];
-        count[i] = sum;
-        sum += t;
-    }
-    for (size_t i = 0; i < n; i++) {
-        b[count[r[a[i]]]++] = a[i];
-    }
 }
 
 // find the suffix array SA of s[0..n-1] in {1..alphabet_size}?n
@@ -321,7 +366,11 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
         suf_array_index[static_cast<size_t>(suf[i])] = static_cast<Count>(i);
     }
 
+    // auto t1 = detail::currentTs();
+    // TODO: parallel
     std::vector<Count> lcp = detail::calcLcp<Count>(S, suf, suf_array_index);
+    // auto t2 = detail::currentTs();
+    // std::cout << "lcp " << t2 - t1 << std::endl;
     delete[] S;
     delete[] suf;
 
@@ -364,6 +413,8 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
     std::vector<int> token_ids;
     token_ids.reserve(text.size() * vocab.size() / (total_length - text.size()));
 
+    // auto t1 = detail::currentTs();
+    // TODO: parallel
     size_t match_index = 0;
     while (match_index < text.size()) {
         size_t id = static_cast<size_t>(suf_array_index[match_index]);
@@ -392,6 +443,8 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
             ++match_index;
         }
     }
+    // auto t2 = detail::currentTs();
+    // std::cout << "matching " << t2 - t1 << std::endl;
 
     assert(match_index == text.size());
     return token_ids;
@@ -413,7 +466,6 @@ wordPiece(const std::string &text, const std::vector<std::string> &vocab, int un
         total_length += vocab_utf8[i].size() + 1;
         longest_word_vocab = std::max(longest_word_vocab, vocab_utf8[i].size());
     }
-
     // gives 6% speed boost due to cache and alloc optimizations.
     if (total_length < 2'000'000'000) {
         return wordPiece<uint32_t>(text_utf8, vocab_utf8, unk_token_id, total_length, longest_word_vocab);

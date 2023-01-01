@@ -5,16 +5,11 @@
 #include <string>
 #include <vector>
 
-#include <sched.h>
-#include <sys/mman.h>
-#include <unistd.h>
-
 #include "../utf8.hpp"
 #include "../word_piece.hpp"
 #include "naive.hpp"
 
 int main(int argc, char *argv[]) {
-    mlockall(MCL_CURRENT | MCL_FUTURE);
     auto ts_start = word_piece::detail::currentTs();
     if (argc != 4) {
         throw std::runtime_error(
@@ -53,5 +48,5 @@ int main(int argc, char *argv[]) {
 
     std::cout << ids.size() << " " << text.size();
     auto ts_finish = word_piece::detail::currentTs();
-    std::cout << "Finished in " << ts_finish - ts_start << " ms";
+    std::cout << "Finished in " << ts_finish - ts_start << " ms" << std::endl;
 }

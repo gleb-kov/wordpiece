@@ -285,21 +285,31 @@ int main() {
     testUtf8();
 
     std::cout << "running stress tests (split)." << std::endl;
-    testRandomSplit(10, 100, 5, 2, 100, true);
-    testRandomSplit(10, 100, 5, 2, 100, false);
+    testRandomSplit(10, 200, 5, 2, 100, true);
+    testRandomSplit(10, 200, 5, 2, 100, false);
     testRandomSplit(100'000,
                     1'000'000,
-                    200'000,
+                    400'000,
                     kWordPieceVocabSize,
                     kWordPieceVocabSize,
                     true,
                     true);
 
     std::cout << "running stress tests (concat)." << std::endl;
-    testRandomConcat(10, 100, 5, 2, 100, 10, true);
-    testRandomConcat(10, 100, 5, 2, 100, 10, false);
+    testRandomConcat(10, 200, 5, 2, 100, 10, true);
+    testRandomConcat(10, 200, 5, 2, 100, 10, false);
     testRandomConcat(100'000,
                      1'000'000,
+                     400'000,
+                     kWordPieceVocabSize,
+                     kWordPieceVocabSize,
+                     18,
+                     true,
+                     true);
+
+    std::cout << "running stress tests (concat, multithreading)." << std::endl;
+    testRandomConcat(10'000'000,
+                     10'000'000,
                      200'000,
                      kWordPieceVocabSize,
                      kWordPieceVocabSize,
@@ -308,5 +318,5 @@ int main() {
                      true);
 
     std::cout << "Tests are finished. Passed " << totalChecks() << " checks, including "
-              << totalPositiveChecks() << " positive.";
+              << totalPositiveChecks() << " positive." << std::endl;
 }
