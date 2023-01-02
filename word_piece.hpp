@@ -162,6 +162,8 @@ inline void radixPass(Count *a, Count *b, Char *r, size_t n, size_t alphabet_siz
             work_start = work_end;
         }
         detail::globalThreadPool().waitCompletion();
+
+        // TODO: perform per-thread sorting, then merge-sort inside each batch
         Count sum = 0;
         auto &count = per_thread_count[0];
         for (size_t i = 0; i <= alphabet_size; i++) {
@@ -323,7 +325,7 @@ calcLcp(const uint32_t *str, const Count *suf_a, const std::vector<Count> &suf_a
         size_t work_start = 0;
         for (size_t i = 0; i < thread_count; i++) {
             size_t work_end = std::min(total_length, work_start + work_batch);
-            detail::globalThreadPool().submit([str, suf_a, &suf_array_index, &lcp, work_start, work_end]{
+            detail::globalThreadPool().submit([str, suf_a, work_start, work_end, &suf_array_index, &lcp]{
                 calcLcpImpl(str, suf_a, suf_array_index, lcp, work_start, work_end);
             });
             work_start = work_end;
@@ -365,7 +367,10 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
 
     S[total_length] = S[total_length + 1] = S[total_length + 2] = 0;
     Count *suf = new Count[total_length + 3];
+    auto t1 = detail::currentTs();
     detail::suf_array3n::suffixArray<uint32_t, Count>(S, suf, total_length, alphabet_size);
+    auto t2 = detail::currentTs();
+    std::cout << "sa " << t2 - t1 << '\n';
 
     std::vector<Count> suf_array_index(total_length);
     for (size_t i = 0; i < total_length; i++) {
@@ -384,21 +389,24 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
         who[static_cast<size_t>(suf_array_index[vocab_start_pos])] = static_cast<int>(i);
         vocab_start_pos += vocab[i].size() + 1;
     }
-    const auto get_closest = [&lcp, &who, &vocab, longest_word_vocab, total_length]() {
+    const auto get_closest = [longest_word_vocab, total_length, &lcp, &who, &vocab](bool reverse) {
         std::vector<int> result(total_length, kNoMatchedSuffix);
         // (i, |i|); i is index in ts
         std::vector<std::pair<int, Count>> st;
         st.reserve(longest_word_vocab);
         for (size_t i = 0; i < total_length; i++) {
             if (i > 0) {
-                while (!st.empty() && st.back().second > lcp[i - 1]) {
+                const size_t index = reverse ? total_length - i - 1 : i - 1;
+                while (!st.empty() && st.back().second > lcp[index]) {
                     st.pop_back();
                 }
             }
-            if (who[i] != kNoMatchedSuffix) {
-                Count len = static_cast<Count>(vocab[static_cast<size_t>(who[i])].size());
+
+            const size_t index = reverse ? total_length - 1 - i : i;
+            if (who[index] != kNoMatchedSuffix) {
+                Count len = static_cast<Count>(vocab[static_cast<size_t>(who[index])].size());
                 assert(st.empty() || st.back().second < len);
-                st.emplace_back(who[i], len);
+                st.emplace_back(who[index], len);
             }
             if (!st.empty()) {
                 result[i] = st.back().first;
@@ -407,14 +415,23 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
         return result;
     };
 
-    // todo parallel without reverse
-    auto t1 = detail::currentTs();
-    const std::vector<int> L = get_closest();
-    std::reverse(who.begin(), who.end());
-    std::reverse(lcp.begin(), lcp.end());
-    const std::vector<int> R = get_closest();
-    auto t2 = detail::currentTs();
-    std::cout << "closest " << t2 - t1 << '\n';
+    std::vector<int> L;
+    std::vector<int> R;
+    {
+        static constexpr size_t kWorkBatch = 1'000'000;
+        if (total_length < kWorkBatch) {
+            L = get_closest(false);
+            R = get_closest(true);
+        } else {
+            detail::globalThreadPool().submit([&L, &get_closest]{
+                L = get_closest(false);
+            });
+            detail::globalThreadPool().submit([&R, &get_closest]{
+                R = get_closest(true);
+            });
+            detail::globalThreadPool().waitCompletion();
+        }
+    }
 
     const auto match_word_piece_suffix = [total_length, unk_token_id, &text, &vocab, &L, &R, &suf_array_index](size_t begin, size_t end, std::vector<int> &token_ids) {
         size_t match_index = begin;
@@ -470,7 +487,7 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
                     ++work_end;
                 }
                 per_thread_token_ids[thread_id].reserve((work_end - work_start) * vocab.size() / vocab_length);
-                detail::globalThreadPool().submit([thread_id, work_start, work_end, match_word_piece_suffix, &per_thread_token_ids]{
+                detail::globalThreadPool().submit([thread_id, work_start, work_end, &match_word_piece_suffix, &per_thread_token_ids]{
                     match_word_piece_suffix(work_start, work_end, per_thread_token_ids[thread_id]);
                 });
                 work_start = work_end;
