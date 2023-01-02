@@ -33,6 +33,7 @@ else ()
         -Weverything
         -Wno-c++98-compat-pedantic
         -Wno-ctad-maybe-unsupported
+        -Wno-exit-time-destructors
         -Wno-missing-prototypes
         -Wno-padded
 
