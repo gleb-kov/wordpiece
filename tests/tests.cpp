@@ -84,11 +84,11 @@ void check(const std::string &s,
 
 void check(const std::string &s, const std::vector<std::string> &vocab, bool verbose = false) {
     assert(verifyVocab(vocab));
-    auto start_ts = word_piece::detail::currentTs();
+    auto start_ts = detail::currentTs();
     std::vector<int> fast = word_piece::wordPiece(s, vocab, kUnkTokenId);
-    auto between_ts = word_piece::detail::currentTs();
+    auto between_ts = detail::currentTs();
     std::vector<int> naive = naiveTokenization(s, vocab, kUnkTokenId);
-    auto after_ts = word_piece::detail::currentTs();
+    auto after_ts = detail::currentTs();
     assertEq(fast, naive, s, vocab);
 
     if (verbose) {
@@ -161,6 +161,7 @@ std::vector<std::string> randomSplit(const std::string &s, std::mt19937 &rnd, si
 void testSimple() {
     check("aaaa", {"aaaa", "aaa", "aa", "a"});
     check("abcdef", {"bcde", "ac", "def", "bc", "bcdef", "a"});
+    check("   aaaa  ", {"aa"}, std::vector<int>({0, 0}));
 
     check("aaaa", {"aaaa"}, std::vector<int>({0}));
     check("aaaa", {"aaaa", "aaa", "aa", "a"}, std::vector<int>({0}));
