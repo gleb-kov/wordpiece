@@ -48,3 +48,10 @@ cmake -S tests -B tests/build -DCMAKE_BUILD_TYPE=Release
 ```bash
 source venv/bin/activate && make -C tests/build && python3 tests/benchmark.py data/wiki.txt data/vocab.txt 100
 ```
+
+# Выбор SACA
+
+- https://github.com/kurpicz/saca-bench
+- https://github.com/sacabench/sacabench
+- https://github.com/IlyaGrebnov/libsais
+- https://arxiv.org/pdf/2206.12222.pdf https://gitlab.com/qwerzuiop/lfgsaca
