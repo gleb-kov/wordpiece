@@ -3,7 +3,6 @@
 #pragma once
 
 #include <atomic>
-#include <chrono>
 #include <condition_variable>
 #include <functional>
 #include <mutex>
@@ -13,12 +12,6 @@
 
 
 namespace detail {
-
-inline int64_t currentTs() {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::system_clock::now().time_since_epoch())
-        .count();
-}
 
 class ThreadPool {
   public:
