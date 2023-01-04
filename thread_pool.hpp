@@ -4,9 +4,9 @@
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
+#include <queue>
 #include <thread>
 #include <vector>
-#include <queue>
 
 namespace detail {
 
@@ -17,10 +17,10 @@ inline int64_t currentTs() {
 }
 
 class ThreadPool {
-public:
+  public:
     using Task = std::function<void()>;
 
-public:
+  public:
     ThreadPool() {
         size_t thread_count = static_cast<size_t>(std::thread::hardware_concurrency());
         if (thread_count == 0) {
@@ -55,14 +55,14 @@ public:
     ~ThreadPool() {
         stop_.store(true, std::memory_order_relaxed);
         work_cv_.notify_all();
-        for (auto& thread : threads_) {
+        for (auto &thread : threads_) {
             if (thread.joinable()) {
                 thread.join();
             }
         }
     }
 
-    void submit(Task&& task) {
+    void submit(Task &&task) {
         {
             std::lock_guard<std::mutex> lg(mutex_);
             task_queue_.emplace(std::move(task));
@@ -73,17 +73,13 @@ public:
     void waitCompletion() {
         std::unique_lock<std::mutex> lock(mutex_);
         if (active_tasks_ != 0 || !task_queue_.empty()) {
-            complete_cv_.wait(lock, [this]{
-                return active_tasks_ == 0 && task_queue_.empty();
-            });
+            complete_cv_.wait(lock, [this] { return active_tasks_ == 0 && task_queue_.empty(); });
         }
     }
 
-    [[nodiscard]] size_t maxThreads() const noexcept {
-        return threads_.size();
-    }
+    [[nodiscard]] size_t maxThreads() const noexcept { return threads_.size(); }
 
-private:
+  private:
     std::atomic<bool> stop_{false};
     size_t active_tasks_{0};
     std::mutex mutex_;

@@ -56,18 +56,21 @@ inline void radixPass(Count *a, Count *b, Char *r, size_t n, size_t alphabet_siz
             b[count[r[a[i]]]++] = a[i];
         }
     } else {
-        const size_t thread_count = std::min(detail::globalThreadPool().maxThreads(), n / kWorkBatch);
+        const size_t thread_count
+            = std::min(detail::globalThreadPool().maxThreads(), n / kWorkBatch);
         const size_t work_batch = n / thread_count + 1;
-        std::vector<std::vector<Count>> per_thread_count(thread_count, std::vector<Count>(alphabet_size + 1, 0));
+        std::vector<std::vector<Count>> per_thread_count(thread_count,
+                                                         std::vector<Count>(alphabet_size + 1, 0));
         size_t work_start = 0;
         for (size_t thread_id = 0; thread_id < thread_count; thread_id++) {
             size_t work_end = std::min(n, work_start + work_batch);
-            detail::globalThreadPool().submit([thread_id, a, r, work_start, work_end, &per_thread_count]{
-                auto &work = per_thread_count[thread_id];
-                for (size_t i = work_start; i < work_end; i++) {
-                    work[r[a[i]]]++;
-                }
-            });
+            detail::globalThreadPool().submit(
+                [thread_id, a, r, work_start, work_end, &per_thread_count] {
+                    auto &work = per_thread_count[thread_id];
+                    for (size_t i = work_start; i < work_end; i++) {
+                        work[r[a[i]]]++;
+                    }
+                });
             work_start = work_end;
         }
         detail::globalThreadPool().waitCompletion();
@@ -231,14 +234,16 @@ calcLcp(const uint32_t *str, const Count *suf_a, const std::vector<Count> &suf_a
     if (total_length < 2 * kWorkBatch) {
         calcLcpImpl(str, suf_a, suf_array_index, lcp, 0, total_length);
     } else {
-        const size_t thread_count = std::min(detail::globalThreadPool().maxThreads(), total_length / kWorkBatch);
+        const size_t thread_count
+            = std::min(detail::globalThreadPool().maxThreads(), total_length / kWorkBatch);
         const size_t work_batch = total_length / thread_count + 1;
         size_t work_start = 0;
         for (size_t i = 0; i < thread_count; i++) {
             size_t work_end = std::min(total_length, work_start + work_batch);
-            detail::globalThreadPool().submit([str, suf_a, work_start, work_end, &suf_array_index, &lcp]{
-                calcLcpImpl(str, suf_a, suf_array_index, lcp, work_start, work_end);
-            });
+            detail::globalThreadPool().submit(
+                [str, suf_a, work_start, work_end, &suf_array_index, &lcp] {
+                    calcLcpImpl(str, suf_a, suf_array_index, lcp, work_start, work_end);
+                });
             work_start = work_end;
         }
     }
@@ -330,51 +335,51 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
             L = get_closest(false);
             R = get_closest(true);
         } else {
-            detail::globalThreadPool().submit([&L, &get_closest]{
-                L = get_closest(false);
-            });
-            detail::globalThreadPool().submit([&R, &get_closest]{
-                R = get_closest(true);
-            });
+            detail::globalThreadPool().submit([&L, &get_closest] { L = get_closest(false); });
+            detail::globalThreadPool().submit([&R, &get_closest] { R = get_closest(true); });
             detail::globalThreadPool().waitCompletion();
         }
     }
 
-    const auto match_word_piece_suffix = [total_length, unk_token_id, &text, &vocab, &L, &R, &suf_array_index](size_t begin, size_t end, std::vector<int> &token_ids) {
-        size_t match_index = begin;
-        while (match_index != end && vkcom::is_space(text[match_index])) {
-            ++match_index;
-        }
+    const auto match_word_piece_suffix
+        = [total_length, unk_token_id, &text, &vocab, &L, &R, &suf_array_index](
+              size_t begin,
+              size_t end,
+              std::vector<int> &token_ids) {
+              size_t match_index = begin;
+              while (match_index != end && vkcom::is_space(text[match_index])) {
+                  ++match_index;
+              }
 
-        while (match_index < end) {
-            size_t id = static_cast<size_t>(suf_array_index[match_index]);
-            int x = L[id];
-            int y = R[total_length - 1 - id];
+              while (match_index < end) {
+                  size_t id = static_cast<size_t>(suf_array_index[match_index]);
+                  int x = L[id];
+                  int y = R[total_length - 1 - id];
 
-            if (x != kNoMatchedSuffix || y != kNoMatchedSuffix) {
-                int token_id;
-                if (x != kNoMatchedSuffix && y != kNoMatchedSuffix) {
-                    token_id
-                        = vocab[static_cast<size_t>(x)].size() > vocab[static_cast<size_t>(y)].size()
-                            ? x
-                            : y;
-                } else {
-                    token_id = std::max(x, y);
-                }
-                token_ids.push_back(token_id);
-                match_index += vocab[static_cast<size_t>(token_id)].size();
-            } else {
-                token_ids.push_back(unk_token_id);
-                while (match_index != end && !vkcom::is_space(text[match_index])) {
-                    ++match_index;
-                }
-            }
-            while (match_index != end && vkcom::is_space(text[match_index])) {
-                ++match_index;
-            }
-        }
-    };
-    
+                  if (x != kNoMatchedSuffix || y != kNoMatchedSuffix) {
+                      int token_id;
+                      if (x != kNoMatchedSuffix && y != kNoMatchedSuffix) {
+                          token_id = vocab[static_cast<size_t>(x)].size()
+                                           > vocab[static_cast<size_t>(y)].size()
+                                       ? x
+                                       : y;
+                      } else {
+                          token_id = std::max(x, y);
+                      }
+                      token_ids.push_back(token_id);
+                      match_index += vocab[static_cast<size_t>(token_id)].size();
+                  } else {
+                      token_ids.push_back(unk_token_id);
+                      while (match_index != end && !vkcom::is_space(text[match_index])) {
+                          ++match_index;
+                      }
+                  }
+                  while (match_index != end && vkcom::is_space(text[match_index])) {
+                      ++match_index;
+                  }
+              }
+          };
+
     std::vector<int> token_ids;
     {
         static constexpr size_t kWorkBatch = 1'000'000;
@@ -384,17 +389,24 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
             token_ids.reserve(text.size() * vocab.size() / vocab_length);
             match_word_piece_suffix(0, text.size(), token_ids);
         } else {
-            const size_t thread_count = std::min(detail::globalThreadPool().maxThreads(), text.size() / kWorkBatch);
+            const size_t thread_count
+                = std::min(detail::globalThreadPool().maxThreads(), text.size() / kWorkBatch);
             const size_t work_batch = text.size() / thread_count + 1;
             std::vector<std::vector<int>> per_thread_token_ids(thread_count);
             size_t work_start = 0;
-            for (size_t thread_id = 0; thread_id < thread_count && work_start < text.size(); thread_id++) {
+            for (size_t thread_id = 0; thread_id < thread_count && work_start < text.size();
+                 thread_id++) {
                 size_t work_end = std::min(text.size(), work_start + work_batch);
                 while (work_end < text.size() && !vkcom::is_space(text[work_end])) {
                     ++work_end;
                 }
-                per_thread_token_ids[thread_id].reserve((work_end - work_start) * vocab.size() / vocab_length);
-                detail::globalThreadPool().submit([thread_id, work_start, work_end, &match_word_piece_suffix, &per_thread_token_ids]{
+                per_thread_token_ids[thread_id].reserve((work_end - work_start) * vocab.size()
+                                                        / vocab_length);
+                detail::globalThreadPool().submit([thread_id,
+                                                   work_start,
+                                                   work_end,
+                                                   &match_word_piece_suffix,
+                                                   &per_thread_token_ids] {
                     match_word_piece_suffix(work_start, work_end, per_thread_token_ids[thread_id]);
                 });
                 work_start = work_end;
@@ -409,7 +421,9 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
             work_start = 0;
             for (size_t thread_id = 0; thread_id < thread_count; thread_id++) {
                 std::vector<int> &segment = per_thread_token_ids[thread_id];
-                std::memcpy(token_ids.data() + work_start, segment.data(), segment.size() * sizeof(int));
+                std::memcpy(token_ids.data() + work_start,
+                            segment.data(),
+                            segment.size() * sizeof(int));
                 work_start += segment.size();
             }
         }
@@ -431,20 +445,23 @@ wordPiece(const std::string &text, const std::vector<std::string> &vocab, int un
         if (text.size() < 2 * kWorkBatch) {
             text_utf8 = vkcom::decode_utf8(text);
         } else {
-            const size_t thread_count = std::min(detail::globalThreadPool().maxThreads(), text.size() / kWorkBatch);
+            const size_t thread_count
+                = std::min(detail::globalThreadPool().maxThreads(), text.size() / kWorkBatch);
             const size_t work_batch = text.size() / thread_count + 1;
             std::vector<std::vector<uint32_t>> per_thread_text_utf8(thread_count);
             size_t work_start = 0;
-            for (size_t thread_id = 0; thread_id < thread_count && work_start < text.size(); thread_id++) {
+            for (size_t thread_id = 0; thread_id < thread_count && work_start < text.size();
+                 thread_id++) {
                 size_t work_end = std::min(text.size(), work_start + work_batch);
                 while (work_end < text.size() && !vkcom::check_symbol_start(text[work_end])) {
                     ++work_end;
                 }
-                detail::globalThreadPool().submit([thread_id, work_start, work_end, &per_thread_text_utf8, &text]{
-                    const char *begin = text.data() + work_start;
-                    const size_t len = work_end - work_start;
-                    per_thread_text_utf8[thread_id] = vkcom::decode_utf8(begin, begin + len);
-                });
+                detail::globalThreadPool().submit(
+                    [thread_id, work_start, work_end, &per_thread_text_utf8, &text] {
+                        const char *begin = text.data() + work_start;
+                        const size_t len = work_end - work_start;
+                        per_thread_text_utf8[thread_id] = vkcom::decode_utf8(begin, begin + len);
+                    });
                 work_start = work_end;
             }
 
@@ -457,7 +474,9 @@ wordPiece(const std::string &text, const std::vector<std::string> &vocab, int un
             work_start = 0;
             for (size_t thread_id = 0; thread_id < thread_count; thread_id++) {
                 std::vector<uint32_t> &segment = per_thread_text_utf8[thread_id];
-                std::memcpy(text_utf8.data() + work_start, segment.data(), segment.size() * sizeof(uint32_t));
+                std::memcpy(text_utf8.data() + work_start,
+                            segment.data(),
+                            segment.size() * sizeof(uint32_t));
                 work_start += segment.size();
             }
         }
@@ -476,9 +495,17 @@ wordPiece(const std::string &text, const std::vector<std::string> &vocab, int un
 
     // gives 6% speed boost due to cache and alloc optimizations.
     if (total_length < 2'000'000'000) {
-        return wordPiece<uint32_t>(text_utf8, vocab_utf8, unk_token_id, total_length, longest_word_vocab);
+        return wordPiece<uint32_t>(text_utf8,
+                                   vocab_utf8,
+                                   unk_token_id,
+                                   total_length,
+                                   longest_word_vocab);
     } else {
-        return wordPiece<size_t>(text_utf8, vocab_utf8, unk_token_id, total_length, longest_word_vocab);
+        return wordPiece<size_t>(text_utf8,
+                                 vocab_utf8,
+                                 unk_token_id,
+                                 total_length,
+                                 longest_word_vocab);
     }
 }
 
