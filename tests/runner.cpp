@@ -5,9 +5,9 @@
 #include <string>
 #include <vector>
 
-#include "../src/utils.hpp"
-#include "../src/word_piece.hpp"
 #include "naive.hpp"
+#include "src/utils.hpp"
+#include "src/word_piece.hpp"
 
 int main(int argc, char *argv[]) {
     auto ts_start = detail::currentTs();

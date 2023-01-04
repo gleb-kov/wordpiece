@@ -1,3 +1,5 @@
+# Copyright (c) 2023 Gleb Koveshnikov
+
 import os
 import sys
 import time
@@ -66,13 +68,13 @@ def run_torch(text_file, vocab_file):
 
 
 def run_word_piece(text_file, vocab_file):
-    rc = os.system(f"./tests/build/runner real {text_file} {vocab_file}")
+    rc = os.system(f"./build/tests/runner real {text_file} {vocab_file}")
     print(f'{WORD_PIECE} returned {rc}')
     assert rc == 0
     return rc
 
 def run_naive(text_file, vocab_file):
-    rc = os.system(f"./tests/build/runner naive {text_file} {vocab_file}")
+    rc = os.system(f"./build/tests/runner naive {text_file} {vocab_file}")
     print(f'{NAIVE} returned {rc}')
     assert rc == 0
     return rc

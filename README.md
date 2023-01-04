@@ -17,7 +17,7 @@
 2. внедрить modern linear saca
 3. проверить что переход от uint32_t в uint8_t для utf-8 дает заметный буст.
 4. openmp thread pool
-5. перевести лучший алгоритм во внешнюю память
+5. алгоритм во внешней память
 
 ## Тесты
 
@@ -44,14 +44,14 @@ bzip2 -kdc data/wiki.xml.bz2 > data/wiki.xml
 perl data/xml2txt.pl -nomath -notables data/wiki.xml data/wiki.txt
 python3 -m venv venv && source venv/bin/activate
 pip3 install -r tests/requirements.txt
-cmake -S tests -B tests/build -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 ```
 
 В случае ARM используйте tests/requirements-arm.txt (tensorflow не доступен).
 
 Запуск бенчмарка:
 ```bash
-source venv/bin/activate && make -C tests/build && python3 tests/benchmark.py data/wiki.txt data/vocab.txt 100
+source venv/bin/activate && make -C build && python3 tests/benchmark.py data/wiki.txt data/vocab.txt 100
 ```
 
 # Выбор SACA

@@ -11,9 +11,9 @@
 #include <utility>
 #include <vector>
 
-#include "../src/third_party/thread_pool.hpp"
-#include "../src/third_party/utf8.hpp"
-#include "../src/utils.hpp"
+#include "src/third_party/thread_pool.hpp"
+#include "src/third_party/utf8.hpp"
+#include "src/utils.hpp"
 
 namespace naive {
 

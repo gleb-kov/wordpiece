@@ -9,8 +9,8 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../src/word_piece.hpp"
 #include "naive.hpp"
+#include "src/word_piece.hpp"
 
 static constexpr int kWordPieceVocabSize = 30'000;
 static constexpr int kUnkTokenId = -1;
