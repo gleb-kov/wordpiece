@@ -1,6 +1,6 @@
 # WordPiece
 
-## Алгоритм:
+## Algorithm
 
 Возьмем строку s#t1#t2#...tk, построим на ней суфмас. Решетки обязательно надо вставить (символ, который не встречается).
 
@@ -11,30 +11,39 @@
 ищем слева, справа аналогично. пусть есть две интересных позиции в суфмасе с индексами i<j, причем |i| >= |j|. В предположении что все ti различны, можно утверждать, что i уже никогда не будет хорошей для всех позиций суфмаса >j, поскольку лцп (i;j) строго меньше |i| (если |i| > |j|, то она просто не больше |j|, а если равны, то так как строки различные, то строго меньше). Это означает, что если мы фиксируем позицию суфмаса e, то среди интересных позиций слева от e нас интересуют только рекорды, то есть только убывающий стэк.
 алгоритм: идем сканлайном слева направо, храним стэк хороших интересных позиций i1, i2, .. in, причем |i1| < |i2| < ... < |in|, изначально стэк пустой. пришли в очередную позицию e, пусть lcp(e-1, e) = x. Тогда надо выкинуть все элементы с конца стэка, что |in| > x (очевидно они стали плохими позициями). Теперь если e сама является хорошей позицией, то надо ее добавить в стэк. Очевидно что lcp(e-1, e) <= |e|, так что e будет максимумом в стэке, и инвариант возрастания сохраняется. в очередной позиции e самая длинная интересная хорошая справа позиция это in (потому что в стэке все хорошие позиции и только они).
 
-## Roadmap:
+## Roadmap
 
 1. довести maxmatch до wordpiece
-2. внедрить modern linear saca
-3. проверить что переход от uint32_t в uint8_t для utf-8 дает заметный буст.
-4. openmp вместо своего тредпула
-5. алгоритм во внешней памяти
-6. интеграция в youtokentome
+2. 64-bit версия (проверить https://arxiv.org/pdf/2206.12222.pdf https://gitlab.com/qwerzuiop/lfgsaca)
+3. интеграция в youtokentome
 
-## Тесты
+## Benchmarks
 
-`./tests/tests`
+TODO: script as in youtokentome, table for all algorithms and languages
+TODO: describe machine
 
-TODO: описание тестов
+### 10MB
 
-## Бенчмарки
+### 100MB
 
-### Результаты
+### 500MB
 
-TODO
+### 1GB
 
-### Подготовка
+## Dev
 
-Подготовка для бенчмарка:
+## Build
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && make -C build
+```
+
+### Tests
+
+All tests are placed in `tests/tests.cpp`, results are compared with naive algorithm.
+
+### Prepare benchmark
+
 ```bash
 apt install wget bzip2 perl cmake make
 mkdir -p data
@@ -48,16 +57,10 @@ pip3 install -r tests/requirements.txt
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 ```
 
-В случае ARM используйте tests/requirements-arm.txt (tensorflow не доступен).
+For ARM arch use `tests/requirements-arm.txt` (no tensorflow).
 
-Запуск бенчмарка:
+### Run benchmark
+
 ```bash
 source venv/bin/activate && make -C build && python3 tests/benchmark.py data/enwiki.txt data/vocab.txt 100
 ```
-
-# Выбор SACA
-
-- https://github.com/kurpicz/saca-bench
-- https://github.com/sacabench/sacabench
-- https://github.com/IlyaGrebnov/libsais
-- https://arxiv.org/pdf/2206.12222.pdf https://gitlab.com/qwerzuiop/lfgsaca
