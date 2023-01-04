@@ -1,4 +1,5 @@
-#include <chrono>
+// Copyright (c) 2023 Gleb Koveshnikov
+
 #include <iomanip>
 #include <iostream>
 #include <random>
@@ -8,7 +9,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../word_piece.hpp"
+#include "../src/word_piece.hpp"
 #include "naive.hpp"
 
 static constexpr int kWordPieceVocabSize = 30'000;
@@ -83,11 +84,13 @@ void check(const std::string &s,
 }
 
 void check(const std::string &s, const std::vector<std::string> &vocab, bool verbose = false) {
-    assert(verifyVocab(vocab));
+    if (!verifyVocab(vocab)) {
+        throw std::runtime_error("Vocab is malformed");
+    }
     auto start_ts = detail::currentTs();
     std::vector<int> fast = word_piece::wordPiece(s, vocab, kUnkTokenId);
     auto between_ts = detail::currentTs();
-    std::vector<int> naive = naiveTokenization(s, vocab, kUnkTokenId);
+    std::vector<int> naive = naive::naiveTokenization(s, vocab, kUnkTokenId);
     auto after_ts = detail::currentTs();
     assertEq(fast, naive, s, vocab);
 
@@ -138,7 +141,9 @@ std::string randomStringFromSet(std::mt19937 &rnd,
 }
 
 std::vector<std::string> randomSplit(const std::string &s, std::mt19937 &rnd, size_t parts) {
-    assert(s.size() >= parts);
+    if (s.size() < parts) {
+        throw std::runtime_error("Cannot split string");
+    }
     std::set<size_t> borders;
     borders.insert(s.size());
 
