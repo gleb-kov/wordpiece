@@ -1,3 +1,5 @@
+// Copyright (c) 2019 VK.com
+
 #pragma once
 
 #include <cassert>

@@ -1,12 +1,16 @@
+// Copyright (c) 2023 Ibragim Dzhiblavi
+
 #pragma once
 
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <functional>
 #include <mutex>
 #include <queue>
 #include <thread>
 #include <vector>
+
 
 namespace detail {
 

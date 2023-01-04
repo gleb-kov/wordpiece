@@ -421,10 +421,12 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
             work_start = 0;
             for (size_t thread_id = 0; thread_id < thread_count; thread_id++) {
                 std::vector<int> &segment = per_thread_token_ids[thread_id];
-                std::memcpy(token_ids.data() + work_start,
-                            segment.data(),
-                            segment.size() * sizeof(int));
-                work_start += segment.size();
+                if (!segment.empty()) {
+                    std::memcpy(token_ids.data() + work_start,
+                                segment.data(),
+                                segment.size() * sizeof(int));
+                    work_start += segment.size();
+                }
             }
         }
     }
@@ -474,10 +476,12 @@ wordPiece(const std::string &text, const std::vector<std::string> &vocab, int un
             work_start = 0;
             for (size_t thread_id = 0; thread_id < thread_count; thread_id++) {
                 std::vector<uint32_t> &segment = per_thread_text_utf8[thread_id];
-                std::memcpy(text_utf8.data() + work_start,
-                            segment.data(),
-                            segment.size() * sizeof(uint32_t));
-                work_start += segment.size();
+                if (!segment.empty()) {
+                    std::memcpy(text_utf8.data() + work_start,
+                                segment.data(),
+                                segment.size() * sizeof(uint32_t));
+                    work_start += segment.size();
+                }
             }
         }
     }
