@@ -11,6 +11,8 @@ namespace detail {
 
 int64_t currentTs();
 
+ThreadPool &globalThreadPool();
+
 std::vector<uint32_t> parseText(const std::string &text, ThreadPool &thread_pool);
 
 std::vector<uint32_t> readTextFromFile(const std::string &filepath, ThreadPool &thread_pool);

@@ -19,6 +19,11 @@ int64_t currentTs() {
         .count();
 }
 
+ThreadPool &globalThreadPool() {
+    static ThreadPool thread_pool;
+    return thread_pool;
+}
+
 std::vector<uint32_t> parseText(const std::string &text, ThreadPool &thread_pool) {
     static constexpr size_t kWorkBatch = 5'000'000;
 

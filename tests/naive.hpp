@@ -4,11 +4,8 @@
 
 #include <algorithm>
 #include <cstring>
-#include <fstream>
 #include <string>
-#include <string_view>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 #include "src/third_party/thread_pool.hpp"
@@ -16,11 +13,6 @@
 #include "src/utils.hpp"
 
 namespace naive {
-
-inline detail::ThreadPool &globalThreadPool() {
-    static detail::ThreadPool thread_pool;
-    return thread_pool;
-}
 
 inline std::vector<int> naiveTokenizationImpl(const std::vector<uint32_t> &text,
                                               const std::vector<std::vector<uint32_t>> &vocab,
@@ -77,7 +69,7 @@ inline std::vector<int> naiveTokenizationImpl(const std::vector<uint32_t> &text,
     if (text.size() < 2 * kWorkBatch) {
         token_ids = worker(0, text.size());
     } else {
-        const size_t thread_count = std::min(globalThreadPool().maxThreads(), text.size() / kWorkBatch);
+        const size_t thread_count = std::min(detail::globalThreadPool().maxThreads(), text.size() / kWorkBatch);
         const size_t work_batch = text.size() / thread_count + 1;
         std::vector<std::vector<int>> per_thread_token_ids(thread_count);
         size_t work_begin = 0;
@@ -87,13 +79,13 @@ inline std::vector<int> naiveTokenizationImpl(const std::vector<uint32_t> &text,
             while (work_end < text.size() && !vkcom::is_space(text[work_end])) {
                 ++work_end;
             }
-            globalThreadPool().submit([thread_id, work_begin, work_end, &per_thread_token_ids, &worker] {
+            detail::globalThreadPool().submit([thread_id, work_begin, work_end, &per_thread_token_ids, &worker] {
                 per_thread_token_ids[thread_id] = worker(work_begin, work_end);
             });
             work_begin = work_end;
         }
 
-        globalThreadPool().waitCompletion();
+        detail::globalThreadPool().waitCompletion();
 
         size_t token_count = 0;
         for (size_t thread_id = 0; thread_id < thread_count; thread_id++) {
@@ -121,7 +113,7 @@ inline std::vector<int> naiveTokenization(const std::string &text,
     if (text.empty()) {
         return {};
     }
-    const std::vector<uint32_t> text_utf8 = detail::parseText(text, globalThreadPool());
+    const std::vector<uint32_t> text_utf8 = detail::parseText(text, detail::globalThreadPool());
     const std::vector<std::vector<uint32_t>> vocab_utf8 = detail::parseVocab(vocab);
 
     return naiveTokenizationImpl(text_utf8, vocab_utf8, unk_token_id);
@@ -130,7 +122,7 @@ inline std::vector<int> naiveTokenization(const std::string &text,
 inline std::vector<int> naiveTokenization(const std::string &text_filepath,
                                           const std::string &vocab_filepath,
                                           int unk_token_id = -1) {
-    const std::vector<uint32_t> text_utf8 = detail::readTextFromFile(text_filepath, globalThreadPool());
+    const std::vector<uint32_t> text_utf8 = detail::readTextFromFile(text_filepath, detail::globalThreadPool());
     if (text_utf8.empty()) {
         return {};
     }

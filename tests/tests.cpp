@@ -1,5 +1,6 @@
 // Copyright (c) 2023 Gleb Koveshnikov
 
+#include <algorithm>
 #include <iomanip>
 #include <iostream>
 #include <random>
