@@ -47,6 +47,8 @@ pip3 install -r tests/requirements.txt
 cmake -S tests -B tests/build -DCMAKE_BUILD_TYPE=Release
 ```
 
+В случае ARM используйте tests/requirements-arm.txt (tensorflow не доступен).
+
 Запуск бенчмарка:
 ```bash
 source venv/bin/activate && make -C tests/build && python3 tests/benchmark.py data/wiki.txt data/vocab.txt 100
