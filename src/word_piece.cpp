@@ -4,12 +4,14 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iostream>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "lcp.hpp"
-#include "third_party/saca_dc3.hpp"
+#include "third_party/libsais.h"
+// #include "third_party/libsais64.h"
 #include "third_party/utf8.hpp"
 #include "utils.hpp"
 
@@ -24,32 +26,62 @@ static std::vector<int> wordPieceImpl(const std::vector<uint32_t> &text,
         longest_word_vocab = std::max(longest_word_vocab, word.size());
     }
 
-    uint32_t *S = new uint32_t[total_length + 3];
+    Count *S = new Count[total_length];
     uint32_t alphabet_size = 1;
 
     {
         size_t pos = 0;
         for (uint32_t c : text) {
-            S[pos++] = c;
+            S[pos++] = static_cast<Count>(c);
             alphabet_size = std::max(alphabet_size, c);
         }
         S[pos++] = 1;
         for (const std::vector<uint32_t> &word : vocab) {
             for (uint32_t c : word) {
-                S[pos++] = c;
+                S[pos++] = static_cast<Count>(c);
                 alphabet_size = std::max(alphabet_size, c);
             }
             S[pos++] = 1;
         }
     }
 
-    S[total_length] = S[total_length + 1] = S[total_length + 2] = 0;
-    Count *suf = new Count[total_length + 3];
+    if (total_length > 1'000'000'000ull || alphabet_size > 10'000'000ull) {
+        throw std::runtime_error("64bit not implemented");
+    }
+
+    size_t fs = 0;
+    if (total_length > 1'000'000 && total_length > alphabet_size) {
+        fs = 6 * alphabet_size;
+        if (fs > total_length) {
+            fs = 4 * alphabet_size;
+        }
+        if (fs > total_length) {
+            fs = alphabet_size;
+        }
+    }
+    Count *suf = new Count[total_length + fs];
+    Count saca_rc = 0;
+
     // auto t1 = detail::currentTs();
-    saca_dc3::suffixArray<uint32_t, Count>(S, suf, total_length, alphabet_size);
+#if defined(_OPENMP)
+#pragma message "libsais compiled with openmp"
+    static_assert(false, "openmp not implemented");
+#else
+#pragma message "libsais compiled without openmp"
+    if constexpr (std::is_same_v<Count, int32_t>) {
+        saca_rc = libsais_int(S, suf, static_cast<Count>(total_length), static_cast<Count>(alphabet_size + 1), static_cast<Count>(fs));
+    } else {
+        throw std::runtime_error("Unsupported Count type");
+    }
+#endif
+
+    if (saca_rc != 0) {
+        throw std::runtime_error("SACA return code: " + std::to_string(saca_rc));
+    }
     // auto t2 = detail::currentTs();
     // std::cout << "sa " << t2 - t1 << '\n';
 
+    // reuse libsis plcp and lcp functions
     std::vector<Count> suf_array_index(total_length);
     for (size_t i = 0; i < total_length; i++) {
         suf_array_index[static_cast<size_t>(suf[i])] = static_cast<Count>(i);
@@ -201,11 +233,13 @@ static std::vector<int> wordPieceImpl(const std::vector<uint32_t> &text,
 
 static std::vector<int>
 wordPiece(const std::vector<uint32_t> &text, const std::vector<std::vector<uint32_t>> &vocab, int unk_token_id) {
-    // gives 6% speed boost due to cache and alloc optimizations.
+    // TODO: check if uint32_t -> uint8_t might give speedup
+    // TODO: implement 64-bit impl
     if (text.size() < 2'000'000'000) {
-        return wordPieceImpl<uint32_t>(text, vocab, unk_token_id);
+        return wordPieceImpl<int32_t>(text, vocab, unk_token_id);
     } else {
-        return wordPieceImpl<size_t>(text, vocab, unk_token_id);
+        throw std::runtime_error("64-bit not implemented");
+        // return wordPieceImpl<int64_t>(text, vocab, unk_token_id);
     }
 }
 
