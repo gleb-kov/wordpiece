@@ -31,5 +31,5 @@ int main(int argc, char *argv[]) {
     }
 
     auto ts_finish = detail::currentTs();
-    std::cout << "Finished in " << ts_finish - ts_start << " ms (ids " << ids.size() << std::endl;
+    std::cout << "Finished in " << ts_finish - ts_start << " ms; ids " << ids.size() << std::endl;
 }

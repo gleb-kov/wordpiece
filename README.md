@@ -16,8 +16,9 @@
 1. довести maxmatch до wordpiece
 2. внедрить modern linear saca
 3. проверить что переход от uint32_t в uint8_t для utf-8 дает заметный буст.
-4. openmp thread pool
-5. алгоритм во внешней память
+4. openmp вместо своего тредпула
+5. алгоритм во внешней памяти
+6. интеграция в youtokentome
 
 ## Тесты
 
@@ -38,10 +39,10 @@ TODO
 apt install wget bzip2 perl cmake make
 mkdir -p data
 wget -O data/vocab.txt https://huggingface.co/bert-base-uncased/resolve/main/vocab.txt
-wget -O data/wiki.xml.bz2 https://www.dropbox.com/s/cnrhd11zdtc1pic/enwiki-20181001-corpus.xml.bz2?dl=1
+wget -O data/enwiki.xml.bz2 https://www.dropbox.com/s/cnrhd11zdtc1pic/enwiki-20181001-corpus.xml.bz2?dl=1
 wget -O data/xml2txt.pl https://www.dropbox.com/s/p3ta9spzfviovk0/xml2txt.pl
-bzip2 -kdc data/wiki.xml.bz2 > data/wiki.xml
-perl data/xml2txt.pl -nomath -notables data/wiki.xml data/wiki.txt
+bzip2 -kdc data/enwiki.xml.bz2 > data/enwiki.xml
+perl data/xml2txt.pl -nomath -notables data/enwiki.xml data/enwiki.txt
 python3 -m venv venv && source venv/bin/activate
 pip3 install -r tests/requirements.txt
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -51,7 +52,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
 Запуск бенчмарка:
 ```bash
-source venv/bin/activate && make -C build && python3 tests/benchmark.py data/wiki.txt data/vocab.txt 100
+source venv/bin/activate && make -C build && python3 tests/benchmark.py data/enwiki.txt data/vocab.txt 100
 ```
 
 # Выбор SACA

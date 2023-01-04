@@ -3,16 +3,15 @@
 #pragma once
 
 #include <vector>
+#include <numeric>
 
 namespace saca_dc3 {
 
-// always_inline?
 template <typename Char, typename Count>
 inline bool leq(Char a1, Count a2, Char b1, Count b2) {
     return (a1 < b1 || (a1 == b1 && a2 <= b2));
 }
 
-// always_inline?
 template <typename Char, typename Count>
 inline bool leq(Char a1, Char a2, Count a3, Char b1, Char b2, Count b3) {
     return (a1 < b1 || (a1 == b1 && leq(a2, a3, b2, b3)));

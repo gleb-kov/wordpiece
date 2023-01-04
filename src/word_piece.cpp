@@ -4,72 +4,14 @@
 
 #include <algorithm>
 #include <cstring>
-#include <numeric>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "lcp.hpp"
 #include "third_party/saca_dc3.hpp"
-#include "third_party/thread_pool.hpp"
 #include "third_party/utf8.hpp"
 #include "utils.hpp"
-
-namespace word_piece {
-
-template <typename Count>
-static void calcLcpImpl(const uint32_t *str,
-                        const Count *suf_a,
-                        const std::vector<Count> &suf_array_index,
-                        std::vector<Count> &lcp,
-                        size_t begin,
-                        size_t end) {
-    size_t prefix_len = 0;
-    for (size_t i = begin; i < end; i++) {
-        const size_t sa_index = static_cast<size_t>(suf_array_index[i]);
-        if (sa_index + 1 != suf_array_index.size()) {
-            const size_t suf_index = static_cast<size_t>(suf_a[sa_index + 1]);
-
-            while (std::max(i, suf_index) + prefix_len < suf_array_index.size()
-                   && str[i + prefix_len] == str[suf_index + prefix_len]) {
-                prefix_len++;
-            }
-            lcp[sa_index] = static_cast<Count>(prefix_len);
-            if (prefix_len > 0) {
-                prefix_len--;
-            }
-        }
-    }
-}
-
-template <typename Count>
-static std::vector<Count>
-calcLcp(const uint32_t *str, const Count *suf_a, const std::vector<Count> &suf_array_index) {
-    static constexpr size_t kWorkBatch = 1'000'000;
-    const size_t total_length = suf_array_index.size();
-
-    std::vector<Count> lcp(total_length - 1);
-
-    if (total_length < 2 * kWorkBatch) {
-        calcLcpImpl(str, suf_a, suf_array_index, lcp, 0, total_length);
-    } else {
-        const size_t thread_count
-            = std::min(detail::globalThreadPool().maxThreads(), total_length / kWorkBatch);
-        const size_t work_batch = total_length / thread_count + 1;
-        size_t work_start = 0;
-        for (size_t i = 0; i < thread_count; i++) {
-            size_t work_end = std::min(total_length, work_start + work_batch);
-            detail::globalThreadPool().submit(
-                [str, suf_a, work_start, work_end, &suf_array_index, &lcp] {
-                    calcLcpImpl(str, suf_a, suf_array_index, lcp, work_start, work_end);
-                });
-            work_start = work_end;
-        }
-    }
-
-    detail::globalThreadPool().waitCompletion();
-
-    return lcp;
-}
 
 template <typename Count>
 static std::vector<int> wordPieceImpl(const std::vector<uint32_t> &text,
@@ -113,7 +55,7 @@ static std::vector<int> wordPieceImpl(const std::vector<uint32_t> &text,
         suf_array_index[static_cast<size_t>(suf[i])] = static_cast<Count>(i);
     }
 
-    std::vector<Count> lcp = calcLcp<Count>(S, suf, suf_array_index);
+    std::vector<Count> lcp = lcp::calcLcp<Count>(S, suf, suf_array_index);
     delete[] S;
     delete[] suf;
 
@@ -167,8 +109,11 @@ static std::vector<int> wordPieceImpl(const std::vector<uint32_t> &text,
     const auto match_word_piece_suffix
         = [total_length, unk_token_id, &text, &vocab, &L, &R, &suf_array_index](
               size_t begin,
-              size_t end,
-              std::vector<int> &token_ids) {
+              size_t end) {
+              const size_t vocab_length = total_length - text.size();
+              std::vector<int> token_ids;
+              token_ids.reserve((end - begin) * vocab.size() / vocab_length);
+
               size_t match_index = begin;
               while (match_index != end && vkcom::is_space(text[match_index])) {
                   ++match_index;
@@ -201,16 +146,15 @@ static std::vector<int> wordPieceImpl(const std::vector<uint32_t> &text,
                       ++match_index;
                   }
               }
+              return token_ids;
           };
 
     std::vector<int> token_ids;
     {
         static constexpr size_t kWorkBatch = 1'000'000;
-        const size_t vocab_length = total_length - text.size();
 
         if (text.size() < 2 * kWorkBatch) {
-            token_ids.reserve(text.size() * vocab.size() / vocab_length);
-            match_word_piece_suffix(0, text.size(), token_ids);
+            token_ids = match_word_piece_suffix(0, text.size());
         } else {
             const size_t thread_count
                 = std::min(detail::globalThreadPool().maxThreads(), text.size() / kWorkBatch);
@@ -223,14 +167,12 @@ static std::vector<int> wordPieceImpl(const std::vector<uint32_t> &text,
                 while (work_end < text.size() && !vkcom::is_space(text[work_end])) {
                     ++work_end;
                 }
-                per_thread_token_ids[thread_id].reserve((work_end - work_start) * vocab.size()
-                                                        / vocab_length);
                 detail::globalThreadPool().submit([thread_id,
-                                           work_start,
-                                           work_end,
-                                           &match_word_piece_suffix,
-                                           &per_thread_token_ids] {
-                    match_word_piece_suffix(work_start, work_end, per_thread_token_ids[thread_id]);
+                                                   work_start,
+                                                   work_end,
+                                                   &match_word_piece_suffix,
+                                                   &per_thread_token_ids] {
+                    per_thread_token_ids[thread_id] = match_word_piece_suffix(work_start, work_end);
                 });
                 work_start = work_end;
             }
@@ -267,6 +209,8 @@ wordPiece(const std::vector<uint32_t> &text, const std::vector<std::vector<uint3
     }
 }
 
+namespace word_piece {
+
 std::vector<int>
 wordPiece(const std::string &text, const std::vector<std::string> &vocab, int unk_token_id) {
     if (text.empty()) {
@@ -275,7 +219,7 @@ wordPiece(const std::string &text, const std::vector<std::string> &vocab, int un
     const std::vector<uint32_t> text_utf8 = detail::parseText(text, detail::globalThreadPool());
     const std::vector<std::vector<uint32_t>> vocab_utf8 = detail::parseVocab(vocab);
 
-    return wordPiece(text_utf8, vocab_utf8, unk_token_id);
+    return ::wordPiece(text_utf8, vocab_utf8, unk_token_id);
 }
 
 std::vector<int>
@@ -286,7 +230,7 @@ wordPiece(const std::string &text_filepath, const std::string &vocab_filepath, i
     }
     const std::vector<std::vector<uint32_t>> vocab_utf8 = detail::readVocabFromFile(vocab_filepath);
 
-    return wordPiece(text_utf8, vocab_utf8, unk_token_id);
+    return ::wordPiece(text_utf8, vocab_utf8, unk_token_id);
 }
 
 } // namespace word_piece
