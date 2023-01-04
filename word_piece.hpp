@@ -1,37 +1,35 @@
-#ifndef WORD_PIECE_H
-#define WORD_PIECE_H
+#pragma once
 
 #include <algorithm>
-#include <cassert>
-#include <chrono>
 #include <cstring>
 #include <numeric>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
+#include "thread_pool.hpp"
 #include "utf8.hpp"
-
-namespace word_piece {
 
 namespace detail {
 
-inline int64_t currentTs() {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::system_clock::now().time_since_epoch())
-        .count();
+inline ThreadPool &globalThreadPool() {
+    static ThreadPool pool;
+    return pool;
 }
+
+} // namespace detail
 
 namespace suf_array3n {
 
 // http://www.cs.cmu.edu/~guyb/paralg/papers/KarkkainenSanders03.pdf
 
+// always_inline?
 template <typename Char, typename Count>
 inline bool leq(Char a1, Count a2, Char b1, Count b2) {
     return (a1 < b1 || (a1 == b1 && a2 <= b2));
 }
 
+// always_inline?
 template <typename Char, typename Count>
 inline bool leq(Char a1, Char a2, Count a3, Char b1, Char b2, Count b3) {
     return (a1 < b1 || (a1 == b1 && leq(a2, a3, b2, b3)));
@@ -40,18 +38,57 @@ inline bool leq(Char a1, Char a2, Count a3, Char b1, Char b2, Count b3) {
 // stably sort a[0..n-1] to b[0..n-1] with keys in 0..alphabet_size from r
 template <typename Char, typename Count>
 inline void radixPass(Count *a, Count *b, Char *r, size_t n, size_t alphabet_size) {
-    std::vector<Count> count(alphabet_size + 1, 0);
-    for (size_t i = 0; i < n; i++) {
-        count[r[a[i]]]++;
-    }
-    Count sum = 0;
-    for (size_t i = 0; i <= alphabet_size; i++) { // exclusive prefix sums
-        Count t = count[i];
-        count[i] = sum;
-        sum += t;
-    }
-    for (size_t i = 0; i < n; i++) {
-        b[count[r[a[i]]]++] = a[i];
+    static constexpr size_t kWorkBatch = 500'000;
+
+    if (n < 2 * kWorkBatch) {
+        // single threaded
+        std::vector<Count> count(alphabet_size + 1, 0);
+        for (size_t i = 0; i < n; i++) {
+            count[r[a[i]]]++;
+        }
+        Count sum = 0;
+        for (size_t i = 0; i <= alphabet_size; i++) {
+            Count item_count = count[i];
+            count[i] = sum;
+            sum += item_count;
+        }
+        for (size_t i = 0; i < n; i++) {
+            b[count[r[a[i]]]++] = a[i];
+        }
+    } else {
+        const size_t thread_count
+            = std::min(detail::globalThreadPool().maxThreads(), n / kWorkBatch);
+        const size_t work_batch = n / thread_count + 1;
+        std::vector<std::vector<Count>> per_thread_count(thread_count,
+                                                         std::vector<Count>(alphabet_size + 1, 0));
+        size_t work_start = 0;
+        for (size_t thread_id = 0; thread_id < thread_count; thread_id++) {
+            size_t work_end = std::min(n, work_start + work_batch);
+            detail::globalThreadPool().submit(
+                [thread_id, a, r, work_start, work_end, &per_thread_count] {
+                    auto &work = per_thread_count[thread_id];
+                    for (size_t i = work_start; i < work_end; i++) {
+                        work[r[a[i]]]++;
+                    }
+                });
+            work_start = work_end;
+        }
+        detail::globalThreadPool().waitCompletion();
+
+        // TODO: perform per-thread sorting, then merge-sort inside each batch
+        Count sum = 0;
+        auto &count = per_thread_count[0];
+        for (size_t i = 0; i <= alphabet_size; i++) {
+            Count item_count = 0;
+            for (size_t j = 0; j < thread_count; j++) {
+                item_count += per_thread_count[j][i];
+            }
+            count[i] = sum;
+            sum += item_count;
+        }
+        for (size_t i = 0; i < n; i++) {
+            b[count[r[a[i]]]++] = a[i];
+        }
     }
 }
 
@@ -73,9 +110,6 @@ inline void suffixArray(Char *s, Count *SA, size_t n, size_t alphabet_size) {
     // generate positions of mod 1 and mod 2 suffixes
     // the "+(n0-n1)" adds a dummy mod 1 suffix if n%3 == 1
 
-    // n%3==0 @ 0 + 0 = 0
-    // n%3==1 @ 1 + (1 - 0) = 2
-    // n%3==2 @ 2 + (1 - 1) = 2
     for (size_t i = 0, j = 0; i < n + static_cast<size_t>(n0 - n1); i++) {
         if (i % 3 != 0) {
             s12[j++] = static_cast<Count>(i);
@@ -162,15 +196,21 @@ inline void suffixArray(Char *s, Count *SA, size_t n, size_t alphabet_size) {
 
 } // namespace suf_array3n
 
+namespace word_piece {
+
 template <typename Count>
-inline std::vector<Count>
-calcLcp(const uint32_t *str, const Count *suf_a, const std::vector<Count> &suf_array_index) {
-    std::vector<Count> lcp(suf_array_index.size() - 1);
+inline void calcLcpImpl(const uint32_t *str,
+                        const Count *suf_a,
+                        const std::vector<Count> &suf_array_index,
+                        std::vector<Count> &lcp,
+                        size_t begin,
+                        size_t end) {
     size_t prefix_len = 0;
-    for (size_t i = 0; i < suf_array_index.size(); i++) {
+    for (size_t i = begin; i < end; i++) {
         const size_t sa_index = static_cast<size_t>(suf_array_index[i]);
         if (sa_index + 1 != suf_array_index.size()) {
             const size_t suf_index = static_cast<size_t>(suf_a[sa_index + 1]);
+
             while (std::max(i, suf_index) + prefix_len < suf_array_index.size()
                    && str[i + prefix_len] == str[suf_index + prefix_len]) {
                 prefix_len++;
@@ -181,25 +221,44 @@ calcLcp(const uint32_t *str, const Count *suf_a, const std::vector<Count> &suf_a
             }
         }
     }
+}
+
+template <typename Count>
+inline std::vector<Count>
+calcLcp(const uint32_t *str, const Count *suf_a, const std::vector<Count> &suf_array_index) {
+    static constexpr size_t kWorkBatch = 1'000'000;
+    const size_t total_length = suf_array_index.size();
+
+    std::vector<Count> lcp(total_length - 1);
+
+    if (total_length < 2 * kWorkBatch) {
+        calcLcpImpl(str, suf_a, suf_array_index, lcp, 0, total_length);
+    } else {
+        const size_t thread_count
+            = std::min(detail::globalThreadPool().maxThreads(), total_length / kWorkBatch);
+        const size_t work_batch = total_length / thread_count + 1;
+        size_t work_start = 0;
+        for (size_t i = 0; i < thread_count; i++) {
+            size_t work_end = std::min(total_length, work_start + work_batch);
+            detail::globalThreadPool().submit(
+                [str, suf_a, work_start, work_end, &suf_array_index, &lcp] {
+                    calcLcpImpl(str, suf_a, suf_array_index, lcp, work_start, work_end);
+                });
+            work_start = work_end;
+        }
+    }
+
+    detail::globalThreadPool().waitCompletion();
 
     return lcp;
 }
 
-} // namespace detail
-
 template <typename Count>
 inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
                                   const std::vector<std::vector<uint32_t>> &vocab,
-                                  int unk_token_id) {
-    if (text.empty()) {
-        return {};
-    }
-    size_t longest_word_vocab = 1;
-    size_t total_length = text.size() + 1;
-    for (const std::vector<uint32_t> &word : vocab) {
-        total_length += word.size() + 1;
-        longest_word_vocab = std::max(longest_word_vocab, word.size());
-    }
+                                  int unk_token_id,
+                                  size_t total_length,
+                                  size_t longest_word_vocab) {
     uint32_t *S = new uint32_t[total_length + 3];
     uint32_t alphabet_size = 1;
 
@@ -217,45 +276,49 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
             }
             S[pos++] = 1;
         }
-        assert(pos == total_length);
     }
 
     S[total_length] = S[total_length + 1] = S[total_length + 2] = 0;
     Count *suf = new Count[total_length + 3];
-    detail::suf_array3n::suffixArray<uint32_t, Count>(S, suf, total_length, alphabet_size);
+    // auto t1 = detail::currentTs();
+    suf_array3n::suffixArray<uint32_t, Count>(S, suf, total_length, alphabet_size);
+    // auto t2 = detail::currentTs();
+    // std::cout << "sa " << t2 - t1 << '\n';
 
     std::vector<Count> suf_array_index(total_length);
     for (size_t i = 0; i < total_length; i++) {
         suf_array_index[static_cast<size_t>(suf[i])] = static_cast<Count>(i);
     }
 
-    std::vector<Count> lcp = detail::calcLcp<Count>(S, suf, suf_array_index);
+    std::vector<Count> lcp = calcLcp<Count>(S, suf, suf_array_index);
     delete[] S;
     delete[] suf;
 
-    static constexpr int kNoWord = -1;
-    std::vector<int> who(total_length, kNoWord);
+    static constexpr int kNoMatchedSuffix = -1;
+    std::vector<int> who(total_length, kNoMatchedSuffix);
 
     size_t vocab_start_pos = text.size() + 1;
     for (size_t i = 0; i < vocab.size(); i++) {
         who[static_cast<size_t>(suf_array_index[vocab_start_pos])] = static_cast<int>(i);
         vocab_start_pos += vocab[i].size() + 1;
     }
-    const auto get_closest = [&lcp, &who, &vocab, longest_word_vocab, total_length]() {
-        std::vector<int> result(total_length, kNoWord);
+    const auto get_closest = [longest_word_vocab, total_length, &lcp, &who, &vocab](bool reverse) {
+        std::vector<int> result(total_length, kNoMatchedSuffix);
         // (i, |i|); i is index in ts
         std::vector<std::pair<int, Count>> st;
         st.reserve(longest_word_vocab);
         for (size_t i = 0; i < total_length; i++) {
             if (i > 0) {
-                while (!st.empty() && st.back().second > lcp[i - 1]) {
+                const size_t index = reverse ? total_length - i - 1 : i - 1;
+                while (!st.empty() && st.back().second > lcp[index]) {
                     st.pop_back();
                 }
             }
-            if (who[i] != kNoWord) {
-                Count len = static_cast<Count>(vocab[static_cast<size_t>(who[i])].size());
-                assert(st.empty() || st.back().second < len);
-                st.emplace_back(who[i], len);
+
+            const size_t index = reverse ? total_length - 1 - i : i;
+            if (who[index] != kNoMatchedSuffix) {
+                Count len = static_cast<Count>(vocab[static_cast<size_t>(who[index])].size());
+                st.emplace_back(who[index], len);
             }
             if (!st.empty()) {
                 result[i] = st.back().first;
@@ -264,64 +327,190 @@ inline std::vector<int> wordPiece(const std::vector<uint32_t> &text,
         return result;
     };
 
-    const std::vector<int> L = get_closest();
-    std::reverse(who.begin(), who.end());
-    std::reverse(lcp.begin(), lcp.end());
-    const std::vector<int> R = get_closest();
-
-    std::vector<int> token_ids;
-    token_ids.reserve(text.size() * vocab.size() / (total_length - text.size()));
-
-    size_t match_index = 0;
-    while (match_index < text.size()) {
-        size_t id = static_cast<size_t>(suf_array_index[match_index]);
-        int x = L[id];
-        int y = R[total_length - 1 - id];
-
-        if (x != kNoWord || y != kNoWord) {
-            int token_id;
-            if (x != kNoWord && y != kNoWord) {
-                token_id
-                    = vocab[static_cast<size_t>(x)].size() > vocab[static_cast<size_t>(y)].size()
-                        ? x
-                        : y;
-            } else {
-                token_id = std::max(x, y);
-            }
-            token_ids.push_back(token_id);
-            match_index += vocab[static_cast<size_t>(token_id)].size();
+    std::vector<int> L;
+    std::vector<int> R;
+    {
+        static constexpr size_t kWorkBatch = 1'000'000;
+        if (total_length < kWorkBatch) {
+            L = get_closest(false);
+            R = get_closest(true);
         } else {
-            token_ids.push_back(unk_token_id);
-            while (match_index != text.size() && !vkcom::is_space(text[match_index])) {
-                ++match_index;
-            }
-        }
-        while (match_index != text.size() && vkcom::is_space(text[match_index])) {
-            ++match_index;
+            detail::globalThreadPool().submit([&L, &get_closest] { L = get_closest(false); });
+            detail::globalThreadPool().submit([&R, &get_closest] { R = get_closest(true); });
+            detail::globalThreadPool().waitCompletion();
         }
     }
 
-    assert(match_index == text.size());
+    const auto match_word_piece_suffix
+        = [total_length, unk_token_id, &text, &vocab, &L, &R, &suf_array_index](
+              size_t begin,
+              size_t end,
+              std::vector<int> &token_ids) {
+              size_t match_index = begin;
+              while (match_index != end && vkcom::is_space(text[match_index])) {
+                  ++match_index;
+              }
+
+              while (match_index < end) {
+                  size_t id = static_cast<size_t>(suf_array_index[match_index]);
+                  int x = L[id];
+                  int y = R[total_length - 1 - id];
+
+                  if (x != kNoMatchedSuffix || y != kNoMatchedSuffix) {
+                      int token_id;
+                      if (x != kNoMatchedSuffix && y != kNoMatchedSuffix) {
+                          token_id = vocab[static_cast<size_t>(x)].size()
+                                           > vocab[static_cast<size_t>(y)].size()
+                                       ? x
+                                       : y;
+                      } else {
+                          token_id = std::max(x, y);
+                      }
+                      token_ids.push_back(token_id);
+                      match_index += vocab[static_cast<size_t>(token_id)].size();
+                  } else {
+                      token_ids.push_back(unk_token_id);
+                      while (match_index != end && !vkcom::is_space(text[match_index])) {
+                          ++match_index;
+                      }
+                  }
+                  while (match_index != end && vkcom::is_space(text[match_index])) {
+                      ++match_index;
+                  }
+              }
+          };
+
+    std::vector<int> token_ids;
+    {
+        static constexpr size_t kWorkBatch = 1'000'000;
+        const size_t vocab_length = total_length - text.size();
+
+        if (text.size() < 2 * kWorkBatch) {
+            token_ids.reserve(text.size() * vocab.size() / vocab_length);
+            match_word_piece_suffix(0, text.size(), token_ids);
+        } else {
+            const size_t thread_count
+                = std::min(detail::globalThreadPool().maxThreads(), text.size() / kWorkBatch);
+            const size_t work_batch = text.size() / thread_count + 1;
+            std::vector<std::vector<int>> per_thread_token_ids(thread_count);
+            size_t work_start = 0;
+            for (size_t thread_id = 0; thread_id < thread_count && work_start < text.size();
+                 thread_id++) {
+                size_t work_end = std::min(text.size(), work_start + work_batch);
+                while (work_end < text.size() && !vkcom::is_space(text[work_end])) {
+                    ++work_end;
+                }
+                per_thread_token_ids[thread_id].reserve((work_end - work_start) * vocab.size()
+                                                        / vocab_length);
+                detail::globalThreadPool().submit([thread_id,
+                                                   work_start,
+                                                   work_end,
+                                                   &match_word_piece_suffix,
+                                                   &per_thread_token_ids] {
+                    match_word_piece_suffix(work_start, work_end, per_thread_token_ids[thread_id]);
+                });
+                work_start = work_end;
+            }
+            detail::globalThreadPool().waitCompletion();
+
+            size_t token_count = 0;
+            for (size_t thread_id = 0; thread_id < thread_count; thread_id++) {
+                token_count += per_thread_token_ids[thread_id].size();
+            }
+            token_ids.resize(token_count);
+            work_start = 0;
+            for (size_t thread_id = 0; thread_id < thread_count; thread_id++) {
+                std::vector<int> &segment = per_thread_token_ids[thread_id];
+                if (!segment.empty()) {
+                    std::memcpy(token_ids.data() + work_start,
+                                segment.data(),
+                                segment.size() * sizeof(int));
+                    work_start += segment.size();
+                }
+            }
+        }
+    }
+
     return token_ids;
 }
 
 inline std::vector<int>
 wordPiece(const std::string &text, const std::vector<std::string> &vocab, int unk_token_id = -1) {
-    std::vector<uint32_t> text_utf8 = vkcom::decode_utf8(text);
-    size_t total_length = text_utf8.size() + vocab.size();
+    if (text.empty()) {
+        return {};
+    }
+
+    std::vector<uint32_t> text_utf8;
+
+    {
+        static constexpr size_t kWorkBatch = 5'000'000;
+        if (text.size() < 2 * kWorkBatch) {
+            text_utf8 = vkcom::decode_utf8(text);
+        } else {
+            const size_t thread_count
+                = std::min(detail::globalThreadPool().maxThreads(), text.size() / kWorkBatch);
+            const size_t work_batch = text.size() / thread_count + 1;
+            std::vector<std::vector<uint32_t>> per_thread_text_utf8(thread_count);
+            size_t work_start = 0;
+            for (size_t thread_id = 0; thread_id < thread_count && work_start < text.size();
+                 thread_id++) {
+                size_t work_end = std::min(text.size(), work_start + work_batch);
+                while (work_end < text.size() && !vkcom::check_symbol_start(text[work_end])) {
+                    ++work_end;
+                }
+                detail::globalThreadPool().submit(
+                    [thread_id, work_start, work_end, &per_thread_text_utf8, &text] {
+                        const char *begin = text.data() + work_start;
+                        const size_t len = work_end - work_start;
+                        per_thread_text_utf8[thread_id] = vkcom::decode_utf8(begin, begin + len);
+                    });
+                work_start = work_end;
+            }
+
+            detail::globalThreadPool().waitCompletion();
+            size_t text_utf8_size = 0;
+            for (size_t thread_id = 0; thread_id < thread_count; thread_id++) {
+                text_utf8_size += per_thread_text_utf8[thread_id].size();
+            }
+            text_utf8.resize(text_utf8_size);
+            work_start = 0;
+            for (size_t thread_id = 0; thread_id < thread_count; thread_id++) {
+                std::vector<uint32_t> &segment = per_thread_text_utf8[thread_id];
+                if (!segment.empty()) {
+                    std::memcpy(text_utf8.data() + work_start,
+                                segment.data(),
+                                segment.size() * sizeof(uint32_t));
+                    work_start += segment.size();
+                }
+            }
+        }
+    }
+
     std::vector<std::vector<uint32_t>> vocab_utf8(vocab.size());
+
+    size_t total_length = text_utf8.size() + 1;
+    size_t longest_word_vocab = 1;
+
     for (size_t i = 0; i < vocab.size(); i++) {
         vocab_utf8[i] = vkcom::decode_utf8(vocab[i]);
-        total_length += vocab_utf8[i].size();
+        total_length += vocab_utf8[i].size() + 1;
+        longest_word_vocab = std::max(longest_word_vocab, vocab_utf8[i].size());
     }
+
     // gives 6% speed boost due to cache and alloc optimizations.
     if (total_length < 2'000'000'000) {
-        return wordPiece<int>(text_utf8, vocab_utf8, unk_token_id);
+        return wordPiece<uint32_t>(text_utf8,
+                                   vocab_utf8,
+                                   unk_token_id,
+                                   total_length,
+                                   longest_word_vocab);
     } else {
-        return wordPiece<size_t>(text_utf8, vocab_utf8, unk_token_id);
+        return wordPiece<size_t>(text_utf8,
+                                 vocab_utf8,
+                                 unk_token_id,
+                                 total_length,
+                                 longest_word_vocab);
     }
 }
 
 } // namespace word_piece
-
-#endif // WORD_PIECE_H

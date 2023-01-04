@@ -10,7 +10,7 @@
 #include "naive.hpp"
 
 int main(int argc, char *argv[]) {
-    auto ts_start = word_piece::detail::currentTs();
+    auto ts_start = detail::currentTs();
     if (argc != 4) {
         throw std::runtime_error(
             "Usage: ./runner <mode> <text_filepath> <vocab_filepath>. Modes: naive, real.");
@@ -47,6 +47,6 @@ int main(int argc, char *argv[]) {
     }
 
     std::cout << ids.size() << " " << text.size();
-    auto ts_finish = word_piece::detail::currentTs();
-    std::cout << "Finished in " << ts_finish - ts_start << " ms";
+    auto ts_finish = detail::currentTs();
+    std::cout << "Finished in " << ts_finish - ts_start << " ms" << std::endl;
 }

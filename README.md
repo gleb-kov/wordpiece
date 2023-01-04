@@ -1,7 +1,5 @@
 # WordPiece
 
-Single-header library.
-
 ## Алгоритм:
 
 Возьмем строку s#t1#t2#...tk, построим на ней суфмас. Решетки обязательно надо вставить (символ, который не встречается).
@@ -16,7 +14,10 @@ Single-header library.
 ## Roadmap:
 
 1. довести maxmatch до wordpiece
-2. перевести лучший алгоритм во внешнюю память
+2. внедрить modern linear saca
+3. проверить что переход от uint32_t в uint8_t для utf-8 дает заметный буст.
+4. openmp thread pool
+5. перевести лучший алгоритм во внешнюю память
 
 ## Тесты
 
@@ -26,11 +27,11 @@ TODO: описание тестов
 
 ## Бенчмарки
 
-Бенчмарк запускался на:
-- OS: Ubuntu 22.04;
-- CPU: 11th Gen Intel Core i5-11400H @ 2.70GHz x12;
-- SSD: SK hynix PC711 256GB (SeqRead 2300 MB/s, SeqWrite 1320 MB/s, RndRead 36mcs, RndWrite 86mcs);
-- RAM: 16GB.
+### Результаты
+
+TODO
+
+### Подготовка
 
 Подготовка для бенчмарка:
 ```bash
@@ -51,4 +52,9 @@ cmake -S tests -B tests/build -DCMAKE_BUILD_TYPE=Release
 source venv/bin/activate && make -C tests/build && python3 tests/benchmark.py data/wiki.txt data/vocab.txt 100
 ```
 
-TODO: полная таблица результатов
+# Выбор SACA
+
+- https://github.com/kurpicz/saca-bench
+- https://github.com/sacabench/sacabench
+- https://github.com/IlyaGrebnov/libsais
+- https://arxiv.org/pdf/2206.12222.pdf https://gitlab.com/qwerzuiop/lfgsaca

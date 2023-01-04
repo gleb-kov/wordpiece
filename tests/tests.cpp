@@ -84,11 +84,11 @@ void check(const std::string &s,
 
 void check(const std::string &s, const std::vector<std::string> &vocab, bool verbose = false) {
     assert(verifyVocab(vocab));
-    auto start_ts = word_piece::detail::currentTs();
+    auto start_ts = detail::currentTs();
     std::vector<int> fast = word_piece::wordPiece(s, vocab, kUnkTokenId);
-    auto between_ts = word_piece::detail::currentTs();
+    auto between_ts = detail::currentTs();
     std::vector<int> naive = naiveTokenization(s, vocab, kUnkTokenId);
-    auto after_ts = word_piece::detail::currentTs();
+    auto after_ts = detail::currentTs();
     assertEq(fast, naive, s, vocab);
 
     if (verbose) {
@@ -161,6 +161,7 @@ std::vector<std::string> randomSplit(const std::string &s, std::mt19937 &rnd, si
 void testSimple() {
     check("aaaa", {"aaaa", "aaa", "aa", "a"});
     check("abcdef", {"bcde", "ac", "def", "bc", "bcdef", "a"});
+    check("   aaaa  ", {"aa"}, std::vector<int>({0, 0}));
 
     check("aaaa", {"aaaa"}, std::vector<int>({0}));
     check("aaaa", {"aaaa", "aaa", "aa", "a"}, std::vector<int>({0}));
@@ -285,21 +286,31 @@ int main() {
     testUtf8();
 
     std::cout << "running stress tests (split)." << std::endl;
-    testRandomSplit(10, 100, 5, 2, 100, true);
-    testRandomSplit(10, 100, 5, 2, 100, false);
+    testRandomSplit(10, 200, 5, 2, 100, true);
+    testRandomSplit(10, 200, 5, 2, 100, false);
     testRandomSplit(100'000,
                     1'000'000,
-                    200'000,
+                    400'000,
                     kWordPieceVocabSize,
                     kWordPieceVocabSize,
                     true,
                     true);
 
     std::cout << "running stress tests (concat)." << std::endl;
-    testRandomConcat(10, 100, 5, 2, 100, 10, true);
-    testRandomConcat(10, 100, 5, 2, 100, 10, false);
+    testRandomConcat(10, 200, 5, 2, 100, 10, true);
+    testRandomConcat(10, 200, 5, 2, 100, 10, false);
     testRandomConcat(100'000,
                      1'000'000,
+                     400'000,
+                     kWordPieceVocabSize,
+                     kWordPieceVocabSize,
+                     18,
+                     true,
+                     true);
+
+    std::cout << "running stress tests (concat, multithreading)." << std::endl;
+    testRandomConcat(10'000'000,
+                     10'000'000,
                      200'000,
                      kWordPieceVocabSize,
                      kWordPieceVocabSize,
@@ -308,5 +319,5 @@ int main() {
                      true);
 
     std::cout << "Tests are finished. Passed " << totalChecks() << " checks, including "
-              << totalPositiveChecks() << " positive.";
+              << totalPositiveChecks() << " positive." << std::endl;
 }
