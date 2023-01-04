@@ -10,7 +10,7 @@
 namespace lcp {
 
 template <typename Count>
-static void calcLcpImpl(const uint32_t *str,
+static void calcLcpImpl(const Count *str,
                         const Count *suf_a,
                         const std::vector<Count> &suf_array_index,
                         std::vector<Count> &lcp,
@@ -36,7 +36,7 @@ static void calcLcpImpl(const uint32_t *str,
 
 template <typename Count>
 static std::vector<Count>
-calcLcp(const uint32_t *str, const Count *suf_a, const std::vector<Count> &suf_array_index) {
+calcLcp(const Count *str, const Count *suf_a, const std::vector<Count> &suf_array_index) {
     static constexpr size_t kWorkBatch = 1'000'000;
     const size_t total_length = suf_array_index.size();
 
