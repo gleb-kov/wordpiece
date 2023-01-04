@@ -11,14 +11,15 @@
 
 #include "lcp.hpp"
 #include "third_party/libsais.h"
-// #include "third_party/libsais64.h"
 #include "third_party/utf8.hpp"
 #include "utils.hpp"
 
-template <typename Count>
 static std::vector<int> wordPieceImpl(const std::vector<uint32_t> &text,
                                       const std::vector<std::vector<uint32_t>> &vocab,
                                       int unk_token_id) {
+    using Count = int32_t;
+    static_assert(std::is_same_v<Count, int32_t>, "64-bit unsupported"); // TODO
+
     size_t total_length = text.size() + 1;
     size_t longest_word_vocab = 1;
     for (const auto& word : vocab) {
@@ -45,12 +46,12 @@ static std::vector<int> wordPieceImpl(const std::vector<uint32_t> &text,
         }
     }
 
-    if (total_length > 1'000'000'000ull || alphabet_size > 10'000'000ull) {
+    if (total_length > 2'000'000'000ull || alphabet_size > 2'000'000'000) {
         throw std::runtime_error("64bit not implemented");
     }
 
     size_t fs = 0;
-    if (total_length > 1'000'000 && total_length > alphabet_size) {
+    if (total_length > 1'000'000 && total_length > alphabet_size && alphabet_size < 100'000'000) {
         fs = 6 * alphabet_size;
         if (fs > total_length) {
             fs = 4 * alphabet_size;
@@ -62,26 +63,20 @@ static std::vector<int> wordPieceImpl(const std::vector<uint32_t> &text,
     Count *suf = new Count[total_length + fs];
     Count saca_rc = 0;
 
-    // auto t1 = detail::currentTs();
 #if defined(_OPENMP)
 #pragma message "libsais compiled with openmp"
-    static_assert(false, "openmp not implemented");
+    Count int32_t threads_count = total_length > 10'000'000 ? 0 : 1;
+    saca_rc = libsais_int_omp(S, suf, static_cast<Count>(total_length), static_cast<Count>(alphabet_size + 1), static_cast<Count>(fs), threads_count);
 #else
 #pragma message "libsais compiled without openmp"
-    if constexpr (std::is_same_v<Count, int32_t>) {
-        saca_rc = libsais_int(S, suf, static_cast<Count>(total_length), static_cast<Count>(alphabet_size + 1), static_cast<Count>(fs));
-    } else {
-        throw std::runtime_error("Unsupported Count type");
-    }
+    saca_rc = libsais_int(S, suf, static_cast<Count>(total_length), static_cast<Count>(alphabet_size + 1), static_cast<Count>(fs));
 #endif
 
     if (saca_rc != 0) {
         throw std::runtime_error("SACA return code: " + std::to_string(saca_rc));
     }
-    // auto t2 = detail::currentTs();
-    // std::cout << "sa " << t2 - t1 << '\n';
 
-    // reuse libsis plcp and lcp functions
+    // NOTE: libsais has PLCP and LCP functions, but they will take longer.
     std::vector<Count> suf_array_index(total_length);
     for (size_t i = 0; i < total_length; i++) {
         suf_array_index[static_cast<size_t>(suf[i])] = static_cast<Count>(i);
@@ -231,18 +226,6 @@ static std::vector<int> wordPieceImpl(const std::vector<uint32_t> &text,
     return token_ids;
 }
 
-static std::vector<int>
-wordPiece(const std::vector<uint32_t> &text, const std::vector<std::vector<uint32_t>> &vocab, int unk_token_id) {
-    // TODO: check if uint32_t -> uint8_t might give speedup
-    // TODO: implement 64-bit impl
-    if (text.size() < 2'000'000'000) {
-        return wordPieceImpl<int32_t>(text, vocab, unk_token_id);
-    } else {
-        throw std::runtime_error("64-bit not implemented");
-        // return wordPieceImpl<int64_t>(text, vocab, unk_token_id);
-    }
-}
-
 namespace word_piece {
 
 std::vector<int>
@@ -253,7 +236,7 @@ wordPiece(const std::string &text, const std::vector<std::string> &vocab, int un
     const std::vector<uint32_t> text_utf8 = detail::parseText(text, detail::globalThreadPool());
     const std::vector<std::vector<uint32_t>> vocab_utf8 = detail::parseVocab(vocab);
 
-    return ::wordPiece(text_utf8, vocab_utf8, unk_token_id);
+    return ::wordPieceImpl(text_utf8, vocab_utf8, unk_token_id);
 }
 
 std::vector<int>
@@ -264,7 +247,7 @@ wordPiece(const std::string &text_filepath, const std::string &vocab_filepath, i
     }
     const std::vector<std::vector<uint32_t>> vocab_utf8 = detail::readVocabFromFile(vocab_filepath);
 
-    return ::wordPiece(text_utf8, vocab_utf8, unk_token_id);
+    return ::wordPieceImpl(text_utf8, vocab_utf8, unk_token_id);
 }
 
 } // namespace word_piece
