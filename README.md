@@ -14,7 +14,7 @@
 ## Roadmap
 
 1. довести maxmatch до wordpiece
-2. 64-bit версия (проверить https://arxiv.org/pdf/2206.12222.pdf https://gitlab.com/qwerzuiop/lfgsaca)
+2. 64-bit версия
 3. интеграция в youtokentome
 
 ## Benchmarks
@@ -37,6 +37,8 @@ TODO: describe machine
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && make -C build
 ```
+
+To build with OpenMP: `-DCMAKE_USE_OPENMP=On`, Sanitizers: `-DCMAKE_USE_SANITIZERS`;
 
 ### Tests
 

@@ -65,7 +65,7 @@ static std::vector<int> wordPieceImpl(const std::vector<uint32_t> &text,
 
 #if defined(_OPENMP)
 #pragma message "libsais compiled with openmp"
-    Count int32_t threads_count = total_length > 10'000'000 ? 0 : 1;
+    Count threads_count = total_length > 10'000'000 ? 0 : 1;
     saca_rc = libsais_int_omp(S, suf, static_cast<Count>(total_length), static_cast<Count>(alphabet_size + 1), static_cast<Count>(fs), threads_count);
 #else
 #pragma message "libsais compiled without openmp"
