@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-#include "naive.hpp"
 #include "src/utils.hpp"
 #include "src/word_piece.hpp"
 
@@ -13,7 +12,7 @@ int main(int argc, char *argv[]) {
     auto ts_start = detail::currentTs();
     if (argc != 4) {
         throw std::runtime_error(
-            "Usage: ./runner <mode> <text_filepath> <vocab_filepath>. Modes: naive, real.");
+            "Usage: ./runner <mode> <text_filepath> <vocab_filepath>. Modes: fast, linear.");
     }
 
     std::string mode = argv[1];
@@ -22,10 +21,10 @@ int main(int argc, char *argv[]) {
 
     std::vector<int> ids;
 
-    if (mode == "naive") {
-        ids = naive::naiveTokenization(text_filepath, vocab_filepath);
-    } else if (mode == "real") {
-        ids = word_piece::wordPiece(text_filepath, vocab_filepath);
+    if (mode == "fast") {
+        ids = word_piece::fastWordPiece(text_filepath, vocab_filepath);
+    } else if (mode == "linear") {
+        ids = word_piece::linearWordPiece(text_filepath, vocab_filepath);
     } else {
         throw std::runtime_error("Unknown mode");
     }

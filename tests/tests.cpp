@@ -10,7 +10,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "naive.hpp"
+#include "src/utils.hpp"
 #include "src/word_piece.hpp"
 
 static constexpr int kWordPieceVocabSize = 30'000;
@@ -80,8 +80,8 @@ void assertEq(const std::vector<int> &lhs,
 void check(const std::string &s,
            const std::vector<std::string> &vocab,
            const std::vector<int> &expected) {
-    std::vector<int> fast = word_piece::wordPiece(s, vocab, kUnkTokenId);
-    assertEq(fast, expected, s, vocab);
+    std::vector<int> linear = word_piece::linearWordPiece(s, vocab, kUnkTokenId);
+    assertEq(linear, expected, s, vocab);
 }
 
 void check(const std::string &s, const std::vector<std::string> &vocab, bool verbose = false) {
@@ -89,17 +89,17 @@ void check(const std::string &s, const std::vector<std::string> &vocab, bool ver
         throw std::runtime_error("Vocab is malformed");
     }
     auto start_ts = detail::currentTs();
-    std::vector<int> fast = word_piece::wordPiece(s, vocab, kUnkTokenId);
+    std::vector<int> linear = word_piece::linearWordPiece(s, vocab, kUnkTokenId);
     auto between_ts = detail::currentTs();
-    std::vector<int> naive = naive::naiveTokenization(s, vocab, kUnkTokenId);
+    std::vector<int> fast = word_piece::fastWordPiece(s, vocab, kUnkTokenId);
     auto after_ts = detail::currentTs();
-    assertEq(fast, naive, s, vocab);
+    assertEq(linear, fast, s, vocab);
 
     if (verbose) {
-        auto fast_ts = between_ts - start_ts;
-        auto naive_ts = after_ts - between_ts;
-        std::cout << std::fixed << std::setprecision(2) << "Check passed; perf " << fast_ts << "ms"
-                  << ", boost is " << static_cast<double>(naive_ts) / static_cast<double>(fast_ts)
+        auto linear_ts = between_ts - start_ts;
+        auto fast_ts = after_ts - between_ts;
+        std::cout << std::fixed << std::setprecision(2) << "Check passed; perf " << linear_ts << "ms"
+                  << ", boost is " << static_cast<double>(fast_ts) / static_cast<double>(linear_ts)
                   << " times" << std::endl;
     }
 }
@@ -292,8 +292,8 @@ int main() {
     testUtf8();
 
     std::cout << "running stress tests (split)." << std::endl;
-    testRandomSplit(10, 200, 5, 2, 100, true);
-    testRandomSplit(10, 200, 5, 2, 100, false);
+    testRandomSplit(10, 300, 5, 2, 100, true);
+    testRandomSplit(10, 300, 5, 2, 100, false);
     testRandomSplit(100'000,
                     1'000'000,
                     400'000,
@@ -303,8 +303,8 @@ int main() {
                     true);
 
     std::cout << "running stress tests (concat)." << std::endl;
-    testRandomConcat(10, 200, 5, 2, 100, 10, true);
-    testRandomConcat(10, 200, 5, 2, 100, 10, false);
+    testRandomConcat(10, 300, 5, 2, 100, 10, true);
+    testRandomConcat(10, 300, 5, 2, 100, 10, false);
     testRandomConcat(100'000,
                      1'000'000,
                      400'000,

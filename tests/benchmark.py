@@ -12,12 +12,12 @@ from torchtext.transforms import BERTTokenizer as TorchBertTokenizer
 
 
 HUGGING_FACE = 'hugging face'
-NAIVE = 'naive'
+FAST = 'fast'
 TENSORFLOW = 'tensorflow'
 TORCH = 'torch'
-WORD_PIECE = 'word piece'
+LINEAR = 'word piece'
 
-ALGORITHMS = [TENSORFLOW, TORCH, WORD_PIECE, NAIVE, HUGGING_FACE]
+ALGORITHMS = [TENSORFLOW, TORCH, LINEAR, FAST, HUGGING_FACE]
 
 # TODO: check
 # https://github.com/pytorch/text/blob/8eb056103cd1d518d53252dd63d3c75f284345ca/benchmark/benchmark_bert_tokenizer.py
@@ -67,15 +67,15 @@ def run_torch(text_file, vocab_file):
     return ids
 
 
-def run_word_piece(text_file, vocab_file):
-    rc = os.system(f"./build/tests/runner real {text_file} {vocab_file}")
-    print(f'{WORD_PIECE} returned {rc}')
+def run_linear(text_file, vocab_file):
+    rc = os.system(f"./build/tests/runner linear {text_file} {vocab_file}")
+    print(f'{LINEAR} returned {rc}')
     assert rc == 0
     return rc
 
-def run_naive(text_file, vocab_file):
-    rc = os.system(f"./build/tests/runner naive {text_file} {vocab_file}")
-    print(f'{NAIVE} returned {rc}')
+def run_fast(text_file, vocab_file):
+    rc = os.system(f"./build/tests/runner fast {text_file} {vocab_file}")
+    print(f'{FAST} returned {rc}')
     assert rc == 0
     return rc
 
@@ -83,10 +83,10 @@ def run_naive(text_file, vocab_file):
 def run_algorithm(algorithm, text_file, vocab_file):
     algorithm_map = {
         HUGGING_FACE: run_hugging_face,
-        NAIVE: run_naive,
+        FAST: run_fast,
         TORCH: run_torch,
         TENSORFLOW: run_tensorflow,
-        WORD_PIECE: run_word_piece,
+        LINEAR: run_linear,
     }
 
     algorithm_func = algorithm_map[algorithm]

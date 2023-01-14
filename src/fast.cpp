@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Gleb Koveshnikov
 
-#pragma once
+#include "word_piece.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -8,15 +8,13 @@
 #include <unordered_map>
 #include <vector>
 
-#include "src/third_party/thread_pool.hpp"
-#include "src/third_party/utf8.hpp"
-#include "src/utils.hpp"
+#include "third_party/thread_pool.hpp"
+#include "third_party/utf8.hpp"
+#include "utils.hpp"
 
-namespace naive {
-
-inline std::vector<int> naiveTokenizationImpl(const std::vector<uint32_t> &text,
-                                              const std::vector<std::vector<uint32_t>> &vocab,
-                                              int unk_token_id) {
+static std::vector<int> fastWordPieceImpl(const std::vector<uint32_t> &text,
+                                          const std::vector<std::vector<uint32_t>> &vocab,
+                                          int unk_token_id) {
     std::unordered_map<vkcom::VectorSegment, int> word_to_id;
     size_t max_len = 0;
     for (size_t i = 0; i < vocab.size(); i++) {
@@ -107,28 +105,28 @@ inline std::vector<int> naiveTokenizationImpl(const std::vector<uint32_t> &text,
     return token_ids;
 }
 
-inline std::vector<int> naiveTokenization(const std::string &text,
-                                          const std::vector<std::string> &vocab,
-                                          int unk_token_id = -1) {
+namespace word_piece {
+
+std::vector<int>
+fastWordPiece(const std::string &text, const std::vector<std::string> &vocab, int unk_token_id) {
     if (text.empty()) {
         return {};
     }
     const std::vector<uint32_t> text_utf8 = detail::parseText(text, detail::globalThreadPool());
     const std::vector<std::vector<uint32_t>> vocab_utf8 = detail::parseVocab(vocab);
 
-    return naiveTokenizationImpl(text_utf8, vocab_utf8, unk_token_id);
+    return fastWordPieceImpl(text_utf8, vocab_utf8, unk_token_id);
 }
 
-inline std::vector<int> naiveTokenization(const std::string &text_filepath,
-                                          const std::string &vocab_filepath,
-                                          int unk_token_id = -1) {
+std::vector<int>
+fastWordPiece(const std::string &text_filepath, const std::string &vocab_filepath, int unk_token_id) {
     const std::vector<uint32_t> text_utf8 = detail::readTextFromFile(text_filepath, detail::globalThreadPool());
     if (text_utf8.empty()) {
         return {};
     }
     const std::vector<std::vector<uint32_t>> vocab_utf8 = detail::readVocabFromFile(vocab_filepath);
 
-    return naiveTokenizationImpl(text_utf8, vocab_utf8, unk_token_id);
+    return fastWordPieceImpl(text_utf8, vocab_utf8, unk_token_id);
 }
 
-} // namespace naive
+} // namespace word_piece

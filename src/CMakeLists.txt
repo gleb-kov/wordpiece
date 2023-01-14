@@ -1,5 +1,6 @@
 add_library(word_piece STATIC
-            utils.cpp
-            word_piece.cpp)
+            fast.cpp
+            linear.cpp
+            utils.cpp)
 
 add_subdirectory(third_party)
