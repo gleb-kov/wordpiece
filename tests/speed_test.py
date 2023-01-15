@@ -6,9 +6,9 @@ import os
 from pathlib import Path
 from time import time
 
-#import tensorflow
+import tensorflow
 from tabulate import tabulate
-#from tensorflow_text import BertTokenizer as TensorflowBertTokenizer
+from tensorflow_text import BertTokenizer as TensorflowBertTokenizer
 from tokenizers import BertWordPieceTokenizer as HuggingFaceBertTokenizer
 from torchtext.transforms import BERTTokenizer as TorchBertTokenizer
 
@@ -19,7 +19,7 @@ LINEAR = 'linear'
 TENSORFLOW = 'tensorflow'
 TORCH = 'torch'
 
-ALGORITHMS = [FAST, HUGGING_FACE, LINEAR, TORCH]
+ALGORITHMS = [FAST, HUGGING_FACE, LINEAR, TENSORFLOW, TORCH]
 
 
 def run_tensorflow(text_file, vocab_file, n_threads):
@@ -137,7 +137,7 @@ def speed_test(text_file, vocab_file, algorithms, n_threads):
     for algorithm in algorithms:
         print(f'Running {algorithm}')
         time_infer = check_inference_file(algorithm, text_file, vocab_file, n_threads)
-        print(f'{algorithm} finished in {time_infer:.1f} s')
+        print(f'{algorithm} finished in {time_infer:.1f} sec')
         result[algorithm] = time_infer
 
     return result
