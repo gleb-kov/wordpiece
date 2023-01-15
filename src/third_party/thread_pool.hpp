@@ -10,16 +10,17 @@
 #include <thread>
 #include <vector>
 
-
-namespace detail {
+namespace utils {
 
 class ThreadPool {
   public:
     using Task = std::function<void()>;
 
   public:
-    ThreadPool() {
-        size_t thread_count = static_cast<size_t>(std::thread::hardware_concurrency());
+    ThreadPool(size_t thread_count) {
+        if (thread_count == 0) {
+            thread_count = static_cast<size_t>(std::thread::hardware_concurrency());
+        }
         if (thread_count == 0) {
             thread_count = 8;
         }
@@ -86,4 +87,4 @@ class ThreadPool {
     std::queue<Task> task_queue_;
 };
 
-} // namespace detail
+} // namespace utils

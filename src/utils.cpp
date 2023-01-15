@@ -11,7 +11,7 @@
 #include "third_party/thread_pool.hpp"
 #include "third_party/utf8.hpp"
 
-namespace detail {
+namespace utils {
 
 int64_t currentTs() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -19,8 +19,8 @@ int64_t currentTs() {
         .count();
 }
 
-ThreadPool &globalThreadPool() {
-    static ThreadPool thread_pool;
+ThreadPool &globalThreadPool(size_t n_threads) {
+    static ThreadPool thread_pool(n_threads);
     return thread_pool;
 }
 
@@ -103,4 +103,4 @@ std::vector<std::vector<uint32_t>> readVocabFromFile(const std::string &filepath
     return vocab_utf8;
 }
 
-} // namespace detail
+} // namespace utils

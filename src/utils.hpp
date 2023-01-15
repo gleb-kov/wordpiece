@@ -7,11 +7,11 @@
 
 #include "third_party/thread_pool.hpp"
 
-namespace detail {
+namespace utils {
 
 int64_t currentTs();
 
-ThreadPool &globalThreadPool();
+ThreadPool &globalThreadPool(size_t n_threads = 0);
 
 std::vector<uint32_t> parseText(const std::string &text, ThreadPool &thread_pool);
 
@@ -21,4 +21,4 @@ std::vector<std::vector<uint32_t>> parseVocab(const std::vector<std::string> &vo
 
 std::vector<std::vector<uint32_t>> readVocabFromFile(const std::string &filepath);
 
-} // namespace detail
+} // namespace utils

@@ -88,11 +88,11 @@ void check(const std::string &s, const std::vector<std::string> &vocab, bool ver
     if (!verifyVocab(vocab)) {
         throw std::runtime_error("Vocab is malformed");
     }
-    auto start_ts = detail::currentTs();
+    auto start_ts = utils::currentTs();
     std::vector<int> linear = word_piece::linearWordPiece(s, vocab, kUnkTokenId);
-    auto between_ts = detail::currentTs();
+    auto between_ts = utils::currentTs();
     std::vector<int> fast = word_piece::fastWordPiece(s, vocab, kUnkTokenId);
-    auto after_ts = detail::currentTs();
+    auto after_ts = utils::currentTs();
     assertEq(linear, fast, s, vocab);
 
     if (verbose) {

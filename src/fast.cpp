@@ -67,7 +67,7 @@ static std::vector<int> fastWordPieceImpl(const std::vector<uint32_t> &text,
     if (text.size() < 2 * kWorkBatch) {
         token_ids = worker(0, text.size());
     } else {
-        const size_t thread_count = std::min(detail::globalThreadPool().maxThreads(), text.size() / kWorkBatch);
+        const size_t thread_count = std::min(utils::globalThreadPool().maxThreads(), text.size() / kWorkBatch);
         const size_t work_batch = text.size() / thread_count + 1;
         std::vector<std::vector<int>> per_thread_token_ids(thread_count);
         size_t work_begin = 0;
@@ -77,13 +77,13 @@ static std::vector<int> fastWordPieceImpl(const std::vector<uint32_t> &text,
             while (work_end < text.size() && !vkcom::is_space(text[work_end])) {
                 ++work_end;
             }
-            detail::globalThreadPool().submit([thread_id, work_begin, work_end, &per_thread_token_ids, &worker] {
+            utils::globalThreadPool().submit([thread_id, work_begin, work_end, &per_thread_token_ids, &worker] {
                 per_thread_token_ids[thread_id] = worker(work_begin, work_end);
             });
             work_begin = work_end;
         }
 
-        detail::globalThreadPool().waitCompletion();
+        utils::globalThreadPool().waitCompletion();
 
         size_t token_count = 0;
         for (size_t thread_id = 0; thread_id < thread_count; thread_id++) {
@@ -112,19 +112,19 @@ fastWordPiece(const std::string &text, const std::vector<std::string> &vocab, in
     if (text.empty()) {
         return {};
     }
-    const std::vector<uint32_t> text_utf8 = detail::parseText(text, detail::globalThreadPool());
-    const std::vector<std::vector<uint32_t>> vocab_utf8 = detail::parseVocab(vocab);
+    const std::vector<uint32_t> text_utf8 = utils::parseText(text, utils::globalThreadPool());
+    const std::vector<std::vector<uint32_t>> vocab_utf8 = utils::parseVocab(vocab);
 
     return fastWordPieceImpl(text_utf8, vocab_utf8, unk_token_id);
 }
 
 std::vector<int>
 fastWordPiece(const std::string &text_filepath, const std::string &vocab_filepath, int unk_token_id) {
-    const std::vector<uint32_t> text_utf8 = detail::readTextFromFile(text_filepath, detail::globalThreadPool());
+    const std::vector<uint32_t> text_utf8 = utils::readTextFromFile(text_filepath, utils::globalThreadPool());
     if (text_utf8.empty()) {
         return {};
     }
-    const std::vector<std::vector<uint32_t>> vocab_utf8 = detail::readVocabFromFile(vocab_filepath);
+    const std::vector<std::vector<uint32_t>> vocab_utf8 = utils::readVocabFromFile(vocab_filepath);
 
     return fastWordPieceImpl(text_utf8, vocab_utf8, unk_token_id);
 }

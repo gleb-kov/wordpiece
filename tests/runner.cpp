@@ -9,15 +9,18 @@
 #include "src/word_piece.hpp"
 
 int main(int argc, char *argv[]) {
-    auto ts_start = detail::currentTs();
-    if (argc != 4) {
+    if (argc != 4 && argc != 5) {
         throw std::runtime_error(
-            "Usage: ./runner <mode> <text_filepath> <vocab_filepath>. Modes: fast, linear.");
+            "Usage: ./runner <mode> <text_filepath> <vocab_filepath> [n_threads]. Modes: fast, linear.");
     }
 
     std::string mode = argv[1];
     std::string text_filepath = argv[2];
     std::string vocab_filepath = argv[3];
+    size_t n_threads = argc == 5 ? std::stoull(argv[4]) : 0;
+
+    // init thread pool with given number of threads
+    [[maybe_unused]] auto &thread_pool = utils::globalThreadPool(n_threads);
 
     std::vector<int> ids;
 
@@ -29,6 +32,5 @@ int main(int argc, char *argv[]) {
         throw std::runtime_error("Unknown mode");
     }
 
-    auto ts_finish = detail::currentTs();
-    std::cout << "Finished in " << ts_finish - ts_start << " ms; ids " << ids.size() << std::endl;
+    std::cout << "Total ids " << ids.size() << std::endl;
 }

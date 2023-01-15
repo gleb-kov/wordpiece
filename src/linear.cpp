@@ -49,12 +49,12 @@ calcLcp(const Count *str, const Count *suf_a, const std::vector<Count> &suf_arra
         calcLcpImpl(str, suf_a, suf_array_index, lcp, 0, total_length);
     } else {
         const size_t thread_count
-            = std::min(detail::globalThreadPool().maxThreads(), total_length / kWorkBatch);
+            = std::min(utils::globalThreadPool().maxThreads(), total_length / kWorkBatch);
         const size_t work_batch = total_length / thread_count + 1;
         size_t work_start = 0;
         for (size_t i = 0; i < thread_count; i++) {
             size_t work_end = std::min(total_length, work_start + work_batch);
-            detail::globalThreadPool().submit(
+            utils::globalThreadPool().submit(
                 [str, suf_a, work_start, work_end, &suf_array_index, &lcp] {
                     calcLcpImpl(str, suf_a, suf_array_index, lcp, work_start, work_end);
                 });
@@ -62,7 +62,7 @@ calcLcp(const Count *str, const Count *suf_a, const std::vector<Count> &suf_arra
         }
     }
 
-    detail::globalThreadPool().waitCompletion();
+    utils::globalThreadPool().waitCompletion();
 
     return lcp;
 }
@@ -181,9 +181,9 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
             L = get_closest(false);
             R = get_closest(true);
         } else {
-            detail::globalThreadPool().submit([&L, &get_closest] { L = get_closest(false); });
-            detail::globalThreadPool().submit([&R, &get_closest] { R = get_closest(true); });
-            detail::globalThreadPool().waitCompletion();
+            utils::globalThreadPool().submit([&L, &get_closest] { L = get_closest(false); });
+            utils::globalThreadPool().submit([&R, &get_closest] { R = get_closest(true); });
+            utils::globalThreadPool().waitCompletion();
         }
     }
 
@@ -238,7 +238,7 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
             token_ids = match_word_piece_suffix(0, text.size());
         } else {
             const size_t thread_count
-                = std::min(detail::globalThreadPool().maxThreads(), text.size() / kWorkBatch);
+                = std::min(utils::globalThreadPool().maxThreads(), text.size() / kWorkBatch);
             const size_t work_batch = text.size() / thread_count + 1;
             std::vector<std::vector<int>> per_thread_token_ids(thread_count);
             size_t work_start = 0;
@@ -248,7 +248,7 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
                 while (work_end < text.size() && !vkcom::is_space(text[work_end])) {
                     ++work_end;
                 }
-                detail::globalThreadPool().submit([thread_id,
+                utils::globalThreadPool().submit([thread_id,
                                                    work_start,
                                                    work_end,
                                                    &match_word_piece_suffix,
@@ -257,7 +257,7 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
                 });
                 work_start = work_end;
             }
-            detail::globalThreadPool().waitCompletion();
+            utils::globalThreadPool().waitCompletion();
 
             size_t token_count = 0;
             for (size_t thread_id = 0; thread_id < thread_count; thread_id++) {
@@ -287,19 +287,19 @@ linearWordPiece(const std::string &text, const std::vector<std::string> &vocab, 
     if (text.empty()) {
         return {};
     }
-    const std::vector<uint32_t> text_utf8 = detail::parseText(text, detail::globalThreadPool());
-    const std::vector<std::vector<uint32_t>> vocab_utf8 = detail::parseVocab(vocab);
+    const std::vector<uint32_t> text_utf8 = utils::parseText(text, utils::globalThreadPool());
+    const std::vector<std::vector<uint32_t>> vocab_utf8 = utils::parseVocab(vocab);
 
     return linearWordPieceImpl(text_utf8, vocab_utf8, unk_token_id);
 }
 
 std::vector<int>
 linearWordPiece(const std::string &text_filepath, const std::string &vocab_filepath, int unk_token_id) {
-    const std::vector<uint32_t> text_utf8 = detail::readTextFromFile(text_filepath, detail::globalThreadPool());
+    const std::vector<uint32_t> text_utf8 = utils::readTextFromFile(text_filepath, utils::globalThreadPool());
     if (text_utf8.empty()) {
         return {};
     }
-    const std::vector<std::vector<uint32_t>> vocab_utf8 = detail::readVocabFromFile(vocab_filepath);
+    const std::vector<std::vector<uint32_t>> vocab_utf8 = utils::readVocabFromFile(vocab_filepath);
 
     return linearWordPieceImpl(text_utf8, vocab_utf8, unk_token_id);
 }

@@ -25,8 +25,15 @@
 
 1. довести maxmatch до wordpiece
 2. интеграция в youtokentome
-3. скрипт бенчмарков как в youtokentome
-4. таблицы бенчмарков для 4х языков и размеры 500,1000МБ
+3. таблицы бенчмарков для 4х языков и размеры 500,1000МБ
+
+## Build
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && make -C build
+```
+
+To build with OpenMP: `-DCMAKE_USE_OPENMP=On`, Sanitizers: `-DCMAKE_USE_SANITIZERS`;
 
 ## Benchmarks
 
@@ -58,28 +65,12 @@ hugging face: 55.0 sec
 - CPU: 11th Gen Intel Core i5-11400H @ 2.70GHz x12;
 - SSD: SK hynix PC711 256GB (SeqRead 2300 MB/s, SeqWrite 1320 MB/s, RndRead 36mcs, RndWrite 86mcs);
 
-## Build
-
-```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && make -C build
-```
-
-To build with OpenMP: `-DCMAKE_USE_OPENMP=On`, Sanitizers: `-DCMAKE_USE_SANITIZERS`;
-
-### Tests
-
-Тесты расположены в файле `tests/tests.cpp`, результаты алгортмов сравниваются между собой.
-
 ### Prepare benchmark
 
 ```bash
 apt install wget bzip2 perl cmake make
 mkdir -p data
 wget -O data/vocab.txt https://huggingface.co/bert-base-uncased/resolve/main/vocab.txt
-wget -O data/enwiki.xml.bz2 https://www.dropbox.com/s/cnrhd11zdtc1pic/enwiki-20181001-corpus.xml.bz2?dl=1
-wget -O data/xml2txt.pl https://www.dropbox.com/s/p3ta9spzfviovk0/xml2txt.pl
-bzip2 -kdc data/enwiki.xml.bz2 > data/enwiki.xml
-perl data/xml2txt.pl -nomath -notables data/enwiki.xml data/enwiki.txt
 python3 -m venv venv && source venv/bin/activate
 pip3 install -r tests/requirements.txt
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -90,5 +81,5 @@ For ARM arch use `tests/requirements-arm.txt` (no tensorflow).
 ### Run benchmark
 
 ```bash
-source venv/bin/activate && make -C build && python3 tests/benchmark.py data/enwiki.txt data/vocab.txt 100
+source venv/bin/activate && make -C build && python3 tests/speed_test.py --langs en zh --vocab data/vocab.txt --corpus_size 100 --n_threads 8
 ```
