@@ -15,7 +15,7 @@ HUGGING_FACE = 'hugging face'
 FAST = 'fast'
 TENSORFLOW = 'tensorflow'
 TORCH = 'torch'
-LINEAR = 'word piece'
+LINEAR = 'linear'
 
 ALGORITHMS = [TENSORFLOW, TORCH, LINEAR, FAST, HUGGING_FACE]
 

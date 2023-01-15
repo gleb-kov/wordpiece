@@ -25,21 +25,38 @@
 
 1. довести maxmatch до wordpiece
 2. интеграция в youtokentome
+3. скрипт бенчмарков как в youtokentome
+4. таблицы бенчмарков для 4х языков и размеры 500,1000МБ
 
 ## Benchmarks
 
-TODO: script as in youtokentome, table for all algorithms and languages
-TODO: describe machine
-
 ### 10MB
+
+```
+fast: 0.3 sec
+linear: 0.8 sec
+torch: 2.5 sec
+tensorflow: 4.0 sec
+hugging face: 5.0 sec
+```
 
 ### 100MB
 
-### 500MB
+```
+fast: 2.3 sec
+linear: 10.6 sec
+torch: 24.4 sec
+tensorflow: 40.1 sec
+hugging face: 55.0 sec
+```
 
-### 1GB
+### Machine
 
-## Dev
+Бенчмарк запускался на:
+- OS: Ubuntu 22.04;
+- RAM: 16GB;
+- CPU: 11th Gen Intel Core i5-11400H @ 2.70GHz x12;
+- SSD: SK hynix PC711 256GB (SeqRead 2300 MB/s, SeqWrite 1320 MB/s, RndRead 36mcs, RndWrite 86mcs);
 
 ## Build
 
