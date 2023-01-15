@@ -47,6 +47,8 @@ TODO: describe machine
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && make -C build
 ```
 
+To build with OpenMP: `-DCMAKE_USE_OPENMP=On`, Sanitizers: `-DCMAKE_USE_SANITIZERS`;
+
 ### Tests
 
 Тесты расположены в файле `tests/tests.cpp`, результаты алгортмов сравниваются между собой.

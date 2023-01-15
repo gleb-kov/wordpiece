@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <iostream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -100,6 +99,7 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
         }
     }
 
+    ++alphabet_size; // [0; max symbol]
     if (total_length > 2'000'000'000ull || alphabet_size > 2'000'000'000) {
         throw std::runtime_error("64bit not implemented");
     }
@@ -119,11 +119,11 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
 
 #if defined(_OPENMP)
 #pragma message "libsais compiled with openmp"
-    Count int32_t threads_count = total_length > 10'000'000 ? 0 : 1;
-    saca_rc = libsais_int_omp(S, suf, static_cast<Count>(total_length), static_cast<Count>(alphabet_size + 1), static_cast<Count>(fs), threads_count);
+    Count threads_count = total_length > 10'000'000 ? 0 : 1;
+    saca_rc = libsais_int_omp(S, suf, static_cast<Count>(total_length), static_cast<Count>(alphabet_size), static_cast<Count>(fs), threads_count);
 #else
 #pragma message "libsais compiled without openmp"
-    saca_rc = libsais_int(S, suf, static_cast<Count>(total_length), static_cast<Count>(alphabet_size + 1), static_cast<Count>(fs));
+    saca_rc = libsais_int(S, suf, static_cast<Count>(total_length), static_cast<Count>(alphabet_size), static_cast<Count>(fs));
 #endif
 
     if (saca_rc != 0) {

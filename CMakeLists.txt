@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.9)
 project(word_piece C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -18,7 +18,6 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
         -Wall
         -Werror
         -Wextra
-        -Wold-style-cast
         -Wpedantic
 
         -fdiagnostics-color=always
