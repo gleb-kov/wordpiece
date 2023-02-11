@@ -18,8 +18,8 @@ static std::vector<int> fastWordPieceImpl(const std::vector<uint32_t> &text,
     std::unordered_map<vkcom::VectorSegment, int> word_to_id;
     size_t max_len = 0;
     for (size_t i = 0; i < vocab.size(); i++) {
-        vkcom::VectorSegment segment(vocab[i]);
-        word_to_id[segment] = static_cast<int>(i);
+        vkcom::VectorSegmentBuilder segment(vocab[i]);
+        word_to_id[segment.finish()] = static_cast<int>(i);
         max_len = std::max(max_len, vocab[i].size());
     }
     max_len = std::min(max_len, text.size());
@@ -34,21 +34,21 @@ static std::vector<int> fastWordPieceImpl(const std::vector<uint32_t> &text,
 
         while (begin != end) {
             const size_t len = std::min(max_len, end - begin);
-            std::vector<uint32_t> test{text.begin() + static_cast<int64_t>(begin),
-                                       text.begin() + static_cast<int64_t>(begin + len)};
+            auto segment_begin = text.data() + static_cast<int64_t>(begin);
+            auto segment_end = segment_begin + static_cast<int64_t>(len);
 
-            while (!test.empty()) {
-                vkcom::VectorSegment segment(test);
-                auto it = word_to_id.find(segment);
+            vkcom::VectorSegmentBuilder segment(segment_begin, segment_end);
+            while (!segment.empty()) {
+                auto it = word_to_id.find(segment.finish());
                 if (it != word_to_id.end()) {
                     token_ids.push_back(it->second);
-                    begin += test.size();
+                    begin += segment.size();
                     break;
                 } else {
-                    test.pop_back();
+                    segment.pop_back();
                 }
             }
-            if (test.empty()) {
+            if (segment.empty()) {
                 token_ids.push_back(unk_token_id);
                 while (begin != end && !vkcom::is_space(text[begin])) {
                     ++begin;

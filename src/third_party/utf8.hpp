@@ -1,7 +1,9 @@
 // Copyright (c) 2019 VK.com
+// Modified (c) 2023 Gleb Koveshnikov
 
 #pragma once
 
+#include <cassert>
 #include <string>
 #include <vector>
 
@@ -27,28 +29,22 @@ std::vector<uint32_t> decode_utf8(const char *begin, const char *end);
 
 std::vector<uint32_t> decode_utf8(const std::string &utf8_text);
 
+class VectorSegmentBuilder;
+
 struct VectorSegment {
   private:
-    constexpr static uint64_t MOD = 2032191299;
-    constexpr static uint64_t P = 726328703;
+    friend class VectorSegmentBuilder;
 
     const uint32_t *begin_;
     const uint32_t *end_;
-    uint64_t hash_;
+    const uint64_t hash_;
+
+    VectorSegment(const uint32_t *begin, const uint32_t *end, uint64_t hash)
+        : begin_(begin), end_(end), hash_(hash) {}
 
   public:
-    VectorSegment(const std::vector<uint32_t> &segment)
-        : VectorSegment(segment.data(), segment.data() + segment.size()) {}
-
-    VectorSegment(const uint32_t *begin, const uint32_t *end) : begin_(begin), end_(end) {
-        hash_ = 0;
-        for (const uint32_t *it = begin_; it != end_; it++) {
-            hash_ = (hash_ * P + *it) % MOD;
-        }
-    }
-
     bool operator==(const VectorSegment &other) const {
-        if (other.hash_ != hash_ || end_ - begin_ != other.end_ - other.begin_) {
+        if (other.hash() != hash() || end_ - begin_ != other.end_ - other.begin_) {
             return false;
         }
         for (auto it = begin_, other_it = other.begin_; it != end_; it++, other_it++) {
@@ -59,7 +55,55 @@ struct VectorSegment {
         return true;
     }
 
-    uint64_t hash() const { return hash_; }
+    uint64_t hash() const {
+        return hash_;
+    }
+};
+
+class VectorSegmentBuilder {
+private:
+    constexpr static uint64_t MOD = 2032191299;
+    constexpr static uint64_t P = 726328703;
+
+    const uint32_t *begin_;
+    const uint32_t *end_;
+    std::vector<uint64_t> prefix_hash_;
+
+public:
+    VectorSegmentBuilder(const std::vector<uint32_t> &segment)
+        : VectorSegmentBuilder(segment.data(), segment.data() + segment.size()) {}
+
+    VectorSegmentBuilder(const uint32_t *begin, const uint32_t *end) : begin_(begin), end_(end) {
+        uint64_t hash = 0;
+        prefix_hash_.reserve(static_cast<size_t>(end - begin));
+        for (const uint32_t *it = begin_; it != end_; it++) {
+            hash = (hash * P + *it) % MOD;
+            prefix_hash_.push_back(hash);
+        }
+    }
+
+    VectorSegment finish() const {
+        return VectorSegment(begin_, end_, hash());
+    }
+
+    size_t size() const {
+        return prefix_hash_.size();
+    }
+
+    bool empty() const {
+        return prefix_hash_.empty();
+    }
+
+    uint64_t hash() const {
+        return prefix_hash_.empty() ? 0 : prefix_hash_.back();
+    }
+
+    void pop_back() noexcept {
+        if (!prefix_hash_.empty()) {
+            prefix_hash_.pop_back();
+            --end_;
+        }
+    }
 };
 
 } // namespace vkcom
