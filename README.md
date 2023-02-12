@@ -24,8 +24,8 @@
 ## Roadmap
 
 1. довести maxmatch до wordpiece
-2. интеграция в youtokentome
-3. таблицы бенчмарков для 4х языков и размеры 500,1000МБ
+2. таблицы бенчмарков для 4х языков и размеры 500,1000МБ
+3. интеграция в youtokentome
 
 ## Build
 
@@ -70,7 +70,7 @@ hugging face: 55.0 sec
 ```bash
 apt install wget bzip2 perl cmake make
 mkdir -p data
-wget -O data/vocab.txt https://huggingface.co/bert-base-uncased/resolve/main/vocab.txt
+wget -O data/vocab.txt https://huggingface.co/bert-base-cased/resolve/main/vocab.txt
 python3 -m venv venv && source venv/bin/activate
 pip3 install -r tests/requirements.txt
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release

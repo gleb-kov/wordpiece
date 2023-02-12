@@ -1,4 +1,5 @@
 // Copyright (c) 2023 Ibragim Dzhiblavi
+// Modified 2023 Gleb Koveshnikov
 
 #pragma once
 

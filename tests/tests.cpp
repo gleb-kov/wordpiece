@@ -82,6 +82,8 @@ void check(const std::string &s,
            const std::vector<int> &expected) {
     std::vector<int> linear = word_piece::linearWordPiece(s, vocab, kUnkTokenId);
     assertEq(linear, expected, s, vocab);
+    std::vector<int> fast = word_piece::fastWordPiece(s, vocab, kUnkTokenId);
+    assertEq(fast, expected, s, vocab);
 }
 
 void check(const std::string &s, const std::vector<std::string> &vocab, bool verbose = false) {

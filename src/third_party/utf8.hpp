@@ -1,5 +1,5 @@
 // Copyright (c) 2019 VK.com
-// Modified (c) 2023 Gleb Koveshnikov
+// Modified 2023 Gleb Koveshnikov
 
 #pragma once
 

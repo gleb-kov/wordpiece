@@ -6,23 +6,32 @@ import os
 from pathlib import Path
 from time import time
 
-import tensorflow
+# import keras_nlp
+# import tensorflow
 from tabulate import tabulate
-from tensorflow_text import BertTokenizer as TensorflowBertTokenizer
+# from tensorflow_text import BertTokenizer as TensorflowBertTokenizer
 from tokenizers import BertWordPieceTokenizer as HuggingFaceBertTokenizer
 from torchtext.transforms import BERTTokenizer as TorchBertTokenizer
 
 
 FAST = 'fast'
 HUGGING_FACE = 'hugging face'
+KERAS = 'keras'
 LINEAR = 'linear'
 TENSORFLOW = 'tensorflow'
 TORCH = 'torch'
 
-ALGORITHMS = [FAST, HUGGING_FACE, LINEAR, TENSORFLOW, TORCH]
+ALGORITHMS = [FAST, HUGGING_FACE, LINEAR, TORCH]
+LOWER_CASE = False
 
 
-def run_tensorflow(text_file, vocab_file, n_threads):
+def collect_to_file(out_file, ids):
+    if out_file is not None:
+        with open(out_file, 'w') as f:
+            for i in ids:
+                f.write(f'{i} ')
+
+def run_tensorflow(text_file, vocab_file, n_threads, out_file):
     text = ""
     with open(text_file, 'r') as f:
         text = f.read()
@@ -40,54 +49,71 @@ def run_tensorflow(text_file, vocab_file, n_threads):
         ),
         num_oov_buckets=1
     )
-    bert_tokenizer = TensorflowBertTokenizer(lookup_table, token_out_type=tensorflow.int64)
-    ids = bert_tokenizer.tokenize(text).merge_dims(1, -1)
-    return ids
+    tokenizer = TensorflowBertTokenizer(lookup_table, token_out_type=tensorflow.int64, lower_case=LOWER_CASE)
+    ids = tokenizer.tokenize(text).merge_dims(1, -1)
+    assert len(ids) > 0
+    collect_to_file(out_file, ids)
+    return len(ids)
 
 
-def run_hugging_face(text_file, vocab_file, n_threads):
+def run_hugging_face(text_file, vocab_file, n_threads, out_file):
     with open(text_file, 'r') as f:
         text = f.read()
-    tokenizer = HuggingFaceBertTokenizer(vocab_file)
-    print(tokenizer)
+    tokenizer = HuggingFaceBertTokenizer(vocab_file, lowercase=LOWER_CASE)
     ids = tokenizer.encode(text).ids
     assert len(ids) > 0
-    return ids
+    collect_to_file(out_file, ids)
+    return len(ids)
 
 
-def run_torch(text_file, vocab_file, n_threads):
+def run_torch(text_file, vocab_file, n_threads, out_file):
     with open(text_file, 'r') as f:
         text = f.read()
-    tokenizer = TorchBertTokenizer(vocab_file)
+    tokenizer = TorchBertTokenizer(vocab_file, do_lower_case=LOWER_CASE)
     ids = tokenizer(text)
     assert len(ids) > 0
-    return ids
+    collect_to_file(out_file, ids)
+    return len(ids)
 
 
-def run_linear(text_file, vocab_file, n_threads):
-    rc = os.system(f"./build/tests/runner linear {text_file} {vocab_file} {n_threads}")
-    print(f'{LINEAR} returned {rc}')
+def run_keras(text_file, vocab_file, n_threads, out_file):
+    with open(text_file, 'r') as f:
+        text = f.read()
+    tokenizer = keras_nlp.tokenizers.WordPieceTokenizer(vocabulary=vocab_file, lowercase=LOWER_CASE)
+    ids = tokenizer.tokenize(text).merge_dims(1, -1)
+    assert len(ids) > 0
+    collect_to_file(out_file, ids)
+    return len(ids)
+
+
+def run_linear(text_file, vocab_file, n_threads, out_file):
+    assert(LOWER_CASE == False)
+    out_filepath = out_file if out_file is not None else ""
+    rc = os.system(f"./build/tests/runner linear {text_file} {vocab_file} {n_threads} {out_filepath}")
     assert rc == 0
     return rc
 
-def run_fast(text_file, vocab_file, n_threads):
-    rc = os.system(f"./build/tests/runner fast {text_file} {vocab_file} {n_threads}")
-    print(f'{FAST} returned {rc}')
+def run_fast(text_file, vocab_file, n_threads, out_file):
+    assert(LOWER_CASE == False)
+    out_filepath = out_file if out_file is not None else ""
+    rc = os.system(f"./build/tests/runner fast {text_file} {vocab_file} {n_threads} {out_filepath}")
     assert rc == 0
     return rc
 
 
 def get_wordpiece(impl_name):
-    if impl_name == HUGGING_FACE:
-        return run_hugging_face
-    elif impl_name == FAST:
+    if impl_name == FAST:
         return run_fast
-    elif impl_name == TORCH:
-        return run_torch
-    elif impl_name == TENSORFLOW:
-        return run_tensorflow
+    elif impl_name == HUGGING_FACE:
+        return run_hugging_face
+    elif impl_name == KERAS:
+        return run_keras
     elif impl_name == LINEAR:
         return run_linear
+    elif impl_name == TENSORFLOW:
+        return run_tensorflow
+    elif impl_name == TORCH:
+        return run_torch
     assert False
 
 
@@ -125,18 +151,21 @@ def prepare_data(zip_path, size_mb):
     return cutted_text_path
 
 
-def check_inference_file(algorithm, text_file, vocab_file, n_threads):
+def check_inference_file(algorithm, text_file, vocab_file, n_threads, out_file):
     wordpiece = get_wordpiece(algorithm)
     start_time = time()
-    res = wordpiece(text_file, vocab_file, n_threads)
-    return time() - start_time
+    res = wordpiece(text_file, vocab_file, n_threads, out_file)
+    elapsed = time() - start_time
+    print(f"Runner returned: {res}")
+    return elapsed
 
 
-def speed_test(text_file, vocab_file, algorithms, n_threads):
+def speed_test(text_file: str, vocab_file: str, algorithms, n_threads: int, collect: bool,):
     result = {}
     for algorithm in algorithms:
         print(f'Running {algorithm}')
-        time_infer = check_inference_file(algorithm, text_file, vocab_file, n_threads)
+        out_file = f"result_{algorithm}.txt" if collect else None
+        time_infer = check_inference_file(algorithm, text_file, vocab_file, n_threads, out_file)
         print(f'{algorithm} finished in {time_infer:.1f} sec')
         result[algorithm] = time_infer
 
@@ -183,6 +212,7 @@ def parse_args():
         help="list of languages for speed test",
         default="en",
     )
+    parser.add_argument("--collect", action="store_true")
 
     return parser.parse_args()
 
@@ -223,7 +253,7 @@ def main(args):
     global_tokenization = {}
 
     for lang, corpus_path in corpuses.items():
-        tokenization_stat = speed_test(corpus_path, args.vocab, ALGORITHMS, args.n_threads)
+        tokenization_stat = speed_test(corpus_path, args.vocab, ALGORITHMS, args.n_threads, args.collect)
         global_tokenization[lang] = tokenization_stat
 
     print_results(global_tokenization, f"Tokenization {args.corpus_size}MB", corpuses, ALGORITHMS)
