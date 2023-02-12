@@ -6,7 +6,6 @@
 #include <cstring>
 #include <fstream>
 #include <string>
-#include <iostream>
 #include <vector>
 
 #include "third_party/thread_pool.hpp"
@@ -74,10 +73,8 @@ std::vector<uint32_t> parseText(const std::string &text, ThreadPool &thread_pool
 
 std::vector<uint32_t> readTextFromFile(const std::string &filepath, ThreadPool &thread_pool) {
     // TODO: mmap read or read with O_DIRECT
-    auto t = currentTs();
     std::ifstream fin(filepath);
     std::string text = std::string(std::istreambuf_iterator<char>(fin), std::istreambuf_iterator<char>());
-    std::cout << "abc " << currentTs() - t << std::endl;
 
     if (text.empty()) {
         return {};
