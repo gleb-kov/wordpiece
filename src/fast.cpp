@@ -13,18 +13,22 @@
 #include "utils.hpp"
 
 static std::vector<int> fastWordPieceImpl(const std::vector<uint32_t> &text,
-                                          const std::vector<std::vector<uint32_t>> &vocab,
-                                          int unk_token_id) {
-    std::unordered_map<vkcom::VectorSegment, int> word_to_id;
+                                          const utils::WordPieceVocabulary &vocab) {
+    using WordMap = std::unordered_map<vkcom::VectorSegment, int>;
+    WordMap prefix_to_id; // no ## in word prefix
+    WordMap suffix_to_id; // ## in word prefix
+
     size_t max_len = 0;
-    for (size_t i = 0; i < vocab.size(); i++) {
-        vkcom::VectorSegmentBuilder segment(vocab[i]);
-        word_to_id[segment.finish()] = static_cast<int>(i);
-        max_len = std::max(max_len, vocab[i].size());
+    for (size_t i = 0; i < vocab.tokens.size(); i++) {
+        const auto &token = vocab.tokens[i];
+        max_len = std::max(max_len, token.word.size());
+        vkcom::VectorSegmentBuilder segment(token.word);
+        WordMap *word_to_id = token.is_prefix ? &prefix_to_id : &suffix_to_id;
+        (*word_to_id)[segment.finish()] = static_cast<int>(i);
     }
     max_len = std::min(max_len, text.size());
 
-    const auto worker = [unk_token_id, max_len, &text, &word_to_id](size_t begin, size_t end) {
+    const auto worker = [unk_token_id = vocab.unk_token_id, max_len, &text, &prefix_to_id, &suffix_to_id](size_t begin, size_t end) {
         std::vector<int> token_ids;
         token_ids.reserve((end - begin) / max_len + 1);
 
@@ -34,13 +38,16 @@ static std::vector<int> fastWordPieceImpl(const std::vector<uint32_t> &text,
 
         while (begin != end) {
             const size_t len = std::min(max_len, end - begin);
-            auto segment_begin = text.data() + static_cast<int64_t>(begin);
-            auto segment_end = segment_begin + static_cast<int64_t>(len);
+            const uint32_t *segment_begin = text.data() + static_cast<int64_t>(begin);
+            const uint32_t *segment_end = segment_begin + static_cast<int64_t>(len);
+            const uint32_t prev_char = begin == 0 ? vkcom::SPACE_TOKEN : *(segment_begin - 1);
+            const bool is_word_prefix = vkcom::is_space(prev_char) || vkcom::is_punctuation(*segment_begin) || vkcom::is_punctuation(prev_char);
+            const WordMap *word_to_id = is_word_prefix ? &prefix_to_id : &suffix_to_id;
 
             vkcom::VectorSegmentBuilder segment(segment_begin, segment_end);
             while (!segment.empty()) {
-                auto it = word_to_id.find(segment.finish());
-                if (it != word_to_id.end()) {
+                auto it = word_to_id->find(segment.finish());
+                if (it != word_to_id->end()) {
                     token_ids.push_back(it->second);
                     begin += segment.size();
                     break;
@@ -108,25 +115,24 @@ static std::vector<int> fastWordPieceImpl(const std::vector<uint32_t> &text,
 namespace word_piece {
 
 std::vector<int>
-fastWordPiece(const std::string &text, const std::vector<std::string> &vocab, int unk_token_id) {
+fastWordPiece(const std::string &text, const std::vector<std::string> &vocab) {
     if (text.empty()) {
         return {};
     }
     const std::vector<uint32_t> text_utf8 = utils::parseText(text, utils::globalThreadPool());
-    const std::vector<std::vector<uint32_t>> vocab_utf8 = utils::parseVocab(vocab);
+    const utils::WordPieceVocabulary vocab_utf8 = utils::parseVocab(vocab);
 
-    return fastWordPieceImpl(text_utf8, vocab_utf8, unk_token_id);
+    return fastWordPieceImpl(text_utf8, vocab_utf8);
 }
 
 std::vector<int>
-fastWordPiece(const std::string &text_filepath, const std::string &vocab_filepath, int unk_token_id) {
+fastWordPiece(const std::string &text_filepath, const std::string &vocab_filepath) {
     const std::vector<uint32_t> text_utf8 = utils::readTextFromFile(text_filepath, utils::globalThreadPool());
     if (text_utf8.empty()) {
         return {};
     }
-    const std::vector<std::vector<uint32_t>> vocab_utf8 = utils::readVocabFromFile(vocab_filepath);
-
-    return fastWordPieceImpl(text_utf8, vocab_utf8, unk_token_id);
+    const utils::WordPieceVocabulary vocab_utf8 = utils::readVocabFromFile(vocab_filepath);
+    return fastWordPieceImpl(text_utf8, vocab_utf8);
 }
 
 } // namespace word_piece

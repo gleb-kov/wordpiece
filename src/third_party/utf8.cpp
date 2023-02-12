@@ -10,6 +10,10 @@ bool is_space(uint32_t ch) {
     return (ch < 256 && std::isspace(static_cast<int>(ch))) || (ch == SPACE_TOKEN);
 }
 
+bool is_punctuation(uint32_t ch) {
+    return std::ispunct(static_cast<int>(ch)) || (8208 <= ch && ch <= 8213); // hyphen and dash
+}
+
 bool check_byte(char x) { return (static_cast<uint8_t>(x) & 0xc0u) == 0x80u; }
 
 bool check_symbol_start(char x) { return !check_byte(x); };

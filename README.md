@@ -37,25 +37,24 @@ To build with OpenMP: `-DCMAKE_USE_OPENMP=On`, Sanitizers: `-DCMAKE_USE_SANITIZE
 
 ## Benchmarks
 
-### 10MB
+Mac M1 pro:
 
-```
-fast: 0.3 sec
-linear: 0.8 sec
-torch: 2.5 sec
-tensorflow: 4.0 sec
-hugging face: 5.0 sec
-```
+| Tokenization 10MB   |   English   |   Russian   |  Japanese   |   Chinese   |
+|---------------------|-------------|-------------|-------------|-------------|
+| fast                |  0.2 (x1)   | 0.3 (x1.1)  |  0.1 (x1)   |  0.1 (x1)   |
+| hugging face        | 4.1 (x22.3) | 5.6 (x17.8) | 4.2 (x30.1) | 5.0 (x49.5) |
+| linear              | 0.5 (x2.5)  |  0.3 (x1)   | 0.2 (x1.6)  |  0.2 (x2)   |
+| torch               | 1.1 (x6.2)  | 2.5 (x8.2)  | 1.3 (x9.7)  | 0.9 (x9.1)  |
 
-### 100MB
+| Tokenization 100MB   |   English    |   Russian    |   Japanese   |    Chinese    |
+|----------------------|--------------|--------------|--------------|---------------|
+| fast                 |   1.5 (x1)   |   2.6 (x1)   |   0.7 (x1)   |   0.6 (x1)    |
+| hugging face         | 54.0 (x34.9) | 66.0 (x25.4) | 57.0 (x86.1) | 67.6 (x119.6) |
+| linear               |  5.3 (x3.4)  |  3.7 (x1.4)  |  2.1 (x3.2)  |  2.0 (x3.6)   |
+| torch                | 10.5 (x6.8)  | 22.5 (x8.7)  | 12.3 (x18.7) |   9.1 (x16)   |
 
-```
-fast: 2.3 sec
-linear: 10.6 sec
-torch: 24.4 sec
-tensorflow: 40.1 sec
-hugging face: 55.0 sec
-```
+
+
 
 ### Machine
 

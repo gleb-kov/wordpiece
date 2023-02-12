@@ -68,16 +68,15 @@ calcLcp(const Count *str, const Count *suf_a, const std::vector<Count> &suf_arra
 }
 
 static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
-                                            const std::vector<std::vector<uint32_t>> &vocab,
-                                            int unk_token_id) {
+                                            const utils::WordPieceVocabulary &vocab) {
     using Count = int32_t;
     static_assert(std::is_same_v<Count, int32_t>, "64-bit unsupported"); // TODO
 
     size_t total_length = text.size() + 1;
     size_t longest_word_vocab = 1;
-    for (const auto& word : vocab) {
-        total_length += word.size() + 1;
-        longest_word_vocab = std::max(longest_word_vocab, word.size());
+    for (const auto& token : vocab.tokens) {
+        total_length += token.word.size() + 1;
+        longest_word_vocab = std::max(longest_word_vocab, token.word.size());
     }
 
     Count *S = new Count[total_length];
@@ -90,8 +89,8 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
             alphabet_size = std::max(alphabet_size, c);
         }
         S[pos++] = 1;
-        for (const std::vector<uint32_t> &word : vocab) {
-            for (uint32_t c : word) {
+        for (const utils::WordPieceToken &token : vocab.tokens) {
+            for (uint32_t c : token.word) {
                 S[pos++] = static_cast<Count>(c);
                 alphabet_size = std::max(alphabet_size, c);
             }
@@ -144,27 +143,30 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
     std::vector<int> who(total_length, kNoMatchedSuffix);
 
     size_t vocab_start_pos = text.size() + 1;
-    for (size_t i = 0; i < vocab.size(); i++) {
+    for (size_t i = 0; i < vocab.tokens.size(); i++) {
         who[static_cast<size_t>(suf_array_index[vocab_start_pos])] = static_cast<int>(i);
-        vocab_start_pos += vocab[i].size() + 1;
+        vocab_start_pos += vocab.tokens[i].word.size() + 1;
     }
-    const auto get_closest = [longest_word_vocab, total_length, &lcp, &who, &vocab](bool reverse) {
+    const auto get_closest = [longest_word_vocab, total_length, &lcp, &who, &vocab](bool right_side, bool is_prefix_predicate) {
         std::vector<int> result(total_length, kNoMatchedSuffix);
         // (i, |i|); i is index in ts
         std::vector<std::pair<int, Count>> st;
         st.reserve(longest_word_vocab);
         for (size_t i = 0; i < total_length; i++) {
             if (i > 0) {
-                const size_t index = reverse ? total_length - i - 1 : i - 1;
+                const size_t index = right_side ? total_length - i - 1 : i - 1;
                 while (!st.empty() && st.back().second > lcp[index]) {
                     st.pop_back();
                 }
             }
 
-            const size_t index = reverse ? total_length - 1 - i : i;
+            const size_t index = right_side ? total_length - 1 - i : i;
             if (who[index] != kNoMatchedSuffix) {
-                Count len = static_cast<Count>(vocab[static_cast<size_t>(who[index])].size());
-                st.emplace_back(who[index], len);
+                const auto &token = vocab.tokens[static_cast<size_t>(who[index])];
+                if (token.is_prefix == is_prefix_predicate) {
+                    Count len = static_cast<Count>(token.word.size());
+                    st.emplace_back(who[index], len);
+                }
             }
             if (!st.empty()) {
                 result[i] = st.back().first;
@@ -173,50 +175,58 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
         return result;
     };
 
-    std::vector<int> L;
-    std::vector<int> R;
+    std::vector<int> best_left_prefix;
+    std::vector<int> best_right_prefix;
+    std::vector<int> best_left_suffix;
+    std::vector<int> best_right_suffix;
     {
         static constexpr size_t kWorkBatch = 1'000'000;
         if (total_length < kWorkBatch) {
-            L = get_closest(false);
-            R = get_closest(true);
+            best_left_prefix = get_closest(false, true);
+            best_right_prefix = get_closest(true, true);
+            best_left_suffix = get_closest(false, false);
+            best_right_suffix = get_closest(true, false);
         } else {
-            utils::globalThreadPool().submit([&L, &get_closest] { L = get_closest(false); });
-            utils::globalThreadPool().submit([&R, &get_closest] { R = get_closest(true); });
+            utils::globalThreadPool().submit([&best_left_prefix, &get_closest] { best_left_prefix = get_closest(false, true); });
+            utils::globalThreadPool().submit([&best_right_prefix, &get_closest] { best_right_prefix = get_closest(true, true); });
+            utils::globalThreadPool().submit([&best_left_suffix, &get_closest] { best_left_suffix = get_closest(false, false); });
+            utils::globalThreadPool().submit([&best_right_suffix, &get_closest] { best_right_suffix = get_closest(true, false); });
             utils::globalThreadPool().waitCompletion();
         }
     }
 
-    const auto match_word_piece_suffix
-        = [total_length, unk_token_id, &text, &vocab, &L, &R, &suf_array_index](
-              size_t begin,
+    const auto match_word_piece
+        = [total_length, unk_token_id = vocab.unk_token_id, &text, &vocab, &suf_array_index, &best_left_prefix, &best_left_suffix, &best_right_prefix, &best_right_suffix](
+              size_t match_index,
               size_t end) {
               const size_t vocab_length = total_length - text.size();
               std::vector<int> token_ids;
-              token_ids.reserve((end - begin) * vocab.size() / vocab_length);
+              token_ids.reserve((end - match_index) * vocab.tokens.size() / vocab_length);
 
-              size_t match_index = begin;
               while (match_index != end && vkcom::is_space(text[match_index])) {
                   ++match_index;
               }
 
               while (match_index < end) {
-                  size_t id = static_cast<size_t>(suf_array_index[match_index]);
-                  int x = L[id];
-                  int y = R[total_length - 1 - id];
+                  const size_t left_sa_id = static_cast<size_t>(suf_array_index[match_index]);
+                  const size_t right_sa_id = total_length - 1 - left_sa_id;
+                  const uint32_t prev_char = match_index == 0 ? vkcom::SPACE_TOKEN : text[match_index - 1];
+                  const bool is_word_prefix = vkcom::is_space(prev_char) || vkcom::is_punctuation(text[match_index]) || vkcom::is_punctuation(prev_char);
+                  const int x = is_word_prefix ? best_left_prefix[left_sa_id] : best_left_suffix[left_sa_id];
+                  const int y = is_word_prefix ? best_right_prefix[right_sa_id] : best_right_suffix[right_sa_id];
 
                   if (x != kNoMatchedSuffix || y != kNoMatchedSuffix) {
                       int token_id;
                       if (x != kNoMatchedSuffix && y != kNoMatchedSuffix) {
-                          token_id = vocab[static_cast<size_t>(x)].size()
-                                           > vocab[static_cast<size_t>(y)].size()
+                          token_id = vocab.tokens[static_cast<size_t>(x)].word.size()
+                                           > vocab.tokens[static_cast<size_t>(y)].word.size()
                                        ? x
                                        : y;
                       } else {
                           token_id = std::max(x, y);
                       }
                       token_ids.push_back(token_id);
-                      match_index += vocab[static_cast<size_t>(token_id)].size();
+                      match_index += vocab.tokens[static_cast<size_t>(token_id)].word.size();
                   } else {
                       token_ids.push_back(unk_token_id);
                       while (match_index != end && !vkcom::is_space(text[match_index])) {
@@ -228,14 +238,14 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
                   }
               }
               return token_ids;
-          };
+    };
 
     std::vector<int> token_ids;
     {
         static constexpr size_t kWorkBatch = 1'000'000;
 
         if (text.size() < 2 * kWorkBatch) {
-            token_ids = match_word_piece_suffix(0, text.size());
+            token_ids = match_word_piece(0, text.size());
         } else {
             const size_t thread_count
                 = std::min(utils::globalThreadPool().maxThreads(), text.size() / kWorkBatch);
@@ -251,9 +261,9 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
                 utils::globalThreadPool().submit([thread_id,
                                                    work_start,
                                                    work_end,
-                                                   &match_word_piece_suffix,
+                                                   &match_word_piece,
                                                    &per_thread_token_ids] {
-                    per_thread_token_ids[thread_id] = match_word_piece_suffix(work_start, work_end);
+                    per_thread_token_ids[thread_id] = match_word_piece(work_start, work_end);
                 });
                 work_start = work_end;
             }
@@ -283,25 +293,25 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
 namespace word_piece {
 
 std::vector<int>
-linearWordPiece(const std::string &text, const std::vector<std::string> &vocab, int unk_token_id) {
+linearWordPiece(const std::string &text, const std::vector<std::string> &vocab) {
     if (text.empty()) {
         return {};
     }
     const std::vector<uint32_t> text_utf8 = utils::parseText(text, utils::globalThreadPool());
-    const std::vector<std::vector<uint32_t>> vocab_utf8 = utils::parseVocab(vocab);
+    const utils::WordPieceVocabulary vocab_utf8 = utils::parseVocab(vocab);
 
-    return linearWordPieceImpl(text_utf8, vocab_utf8, unk_token_id);
+    return linearWordPieceImpl(text_utf8, vocab_utf8);
 }
 
 std::vector<int>
-linearWordPiece(const std::string &text_filepath, const std::string &vocab_filepath, int unk_token_id) {
+linearWordPiece(const std::string &text_filepath, const std::string &vocab_filepath) {
     const std::vector<uint32_t> text_utf8 = utils::readTextFromFile(text_filepath, utils::globalThreadPool());
     if (text_utf8.empty()) {
         return {};
     }
-    const std::vector<std::vector<uint32_t>> vocab_utf8 = utils::readVocabFromFile(vocab_filepath);
+    const utils::WordPieceVocabulary vocab_utf8 = utils::readVocabFromFile(vocab_filepath);
 
-    return linearWordPieceImpl(text_utf8, vocab_utf8, unk_token_id);
+    return linearWordPieceImpl(text_utf8, vocab_utf8);
 }
 
 } // namespace word_piece

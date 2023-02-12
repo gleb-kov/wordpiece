@@ -17,8 +17,26 @@ std::vector<uint32_t> parseText(const std::string &text, ThreadPool &thread_pool
 
 std::vector<uint32_t> readTextFromFile(const std::string &filepath, ThreadPool &thread_pool);
 
-std::vector<std::vector<uint32_t>> parseVocab(const std::vector<std::string> &vocab);
+struct WordPieceToken {
+    explicit WordPieceToken(const std::string& encoded_word);
 
-std::vector<std::vector<uint32_t>> readVocabFromFile(const std::string &filepath);
+    bool is_prefix;
+    std::vector<uint32_t> word;
+};
+
+struct WordPieceVocabulary {
+    static constexpr int kDefaultUnkTokenId = -1;
+
+    std::vector<WordPieceToken> tokens;
+    int unk_token_id = kDefaultUnkTokenId;
+};
+
+WordPieceVocabulary parseVocab(const std::vector<std::string> &vocab);
+
+WordPieceVocabulary readVocabFromFile(const std::string &filepath);
+
+bool isSuffixVocab(const std::vector<uint32_t> &word);
+
+bool isSuffixVocab(const uint32_t *begin, const uint32_t *end);
 
 } // namespace utils

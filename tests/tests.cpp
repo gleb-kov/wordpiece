@@ -14,7 +14,7 @@
 #include "src/word_piece.hpp"
 
 static constexpr int kWordPieceVocabSize = 30'000;
-static constexpr int kUnkTokenId = -1;
+static constexpr int kUnkTokenId = utils::WordPieceVocabulary::kDefaultUnkTokenId;
 
 static int &totalChecks() {
     static int counter = 0;
@@ -78,32 +78,24 @@ void assertEq(const std::vector<int> &lhs,
 }
 
 void check(const std::string &s,
-           const std::vector<std::string> &vocab,
+           std::vector<std::string> vocab,
            const std::vector<int> &expected) {
-    std::vector<int> linear = word_piece::linearWordPiece(s, vocab, kUnkTokenId);
-    assertEq(linear, expected, s, vocab);
-    std::vector<int> fast = word_piece::fastWordPiece(s, vocab, kUnkTokenId);
-    assertEq(fast, expected, s, vocab);
-}
-
-void check(const std::string &s, const std::vector<std::string> &vocab, bool verbose = false) {
     if (!verifyVocab(vocab)) {
         throw std::runtime_error("Vocab is malformed");
     }
-    auto start_ts = utils::currentTs();
-    std::vector<int> linear = word_piece::linearWordPiece(s, vocab, kUnkTokenId);
-    auto between_ts = utils::currentTs();
-    std::vector<int> fast = word_piece::fastWordPiece(s, vocab, kUnkTokenId);
-    auto after_ts = utils::currentTs();
-    assertEq(linear, fast, s, vocab);
+    std::vector<int> linear = word_piece::linearWordPiece(s, vocab);
+    assertEq(linear, expected, s, vocab);
+    std::vector<int> fast = word_piece::fastWordPiece(s, vocab);
+    assertEq(fast, expected, s, vocab);
+}
 
-    if (verbose) {
-        auto linear_ts = between_ts - start_ts;
-        auto fast_ts = after_ts - between_ts;
-        std::cout << std::fixed << std::setprecision(2) << "Check passed; perf " << linear_ts << "ms"
-                  << ", boost is " << static_cast<double>(fast_ts) / static_cast<double>(linear_ts)
-                  << " times" << std::endl;
+void check(const std::string &s, std::vector<std::string> vocab) {
+    if (!verifyVocab(vocab)) {
+        throw std::runtime_error("Vocab is malformed");
     }
+    std::vector<int> linear = word_piece::linearWordPiece(s, vocab);
+    std::vector<int> fast = word_piece::fastWordPiece(s, vocab);
+    assertEq(linear, fast, s, vocab);
 }
 
 std::string randomString(std::mt19937 &rnd, size_t string_length) {
@@ -114,31 +106,6 @@ std::string randomString(std::mt19937 &rnd, size_t string_length) {
         --string_length;
         size_t index = std::uniform_int_distribution<size_t>(0ul, kAllChars.size() - 1)(rnd);
         result.push_back(kAllChars[index]);
-    }
-    return result;
-}
-
-std::vector<std::string>
-randomStringSet(std::mt19937 &rnd, size_t string_count, size_t max_string_len) {
-    std::set<std::string> result;
-    while (string_count > result.size()) {
-        size_t len = std::uniform_int_distribution<size_t>(4, max_string_len)(rnd);
-        result.insert(randomString(rnd, len));
-    }
-
-    return std::vector<std::string>(std::make_move_iterator(result.begin()),
-                                    std::make_move_iterator(result.end()));
-}
-
-std::string randomStringFromSet(std::mt19937 &rnd,
-                                size_t string_length,
-                                const std::vector<std::string> &string_set) {
-    std::string result;
-    result.reserve(string_length + 100);
-    const size_t right_index = string_set.size() - 1;
-    while (string_length > result.size()) {
-        size_t index = std::uniform_int_distribution<size_t>(0ul, right_index)(rnd);
-        result.append(string_set[index]);
     }
     return result;
 }
@@ -158,7 +125,10 @@ std::vector<std::string> randomSplit(const std::string &s, std::mt19937 &rnd, si
     std::set<std::string> result;
     size_t start = 0;
     for (size_t next_border : borders) {
-        result.insert(s.substr(start, next_border - start));
+        if (start == 0) {
+            result.insert(s.substr(start, next_border - start));
+        }
+        result.insert("##" + s.substr(start, next_border - start));
         start = next_border;
     }
 
@@ -169,61 +139,72 @@ std::vector<std::string> randomSplit(const std::string &s, std::mt19937 &rnd, si
 void testSimple() {
     check("aaaa", {"aaaa", "aaa", "aa", "a"});
     check("abcdef", {"bcde", "ac", "def", "bc", "bcdef", "a"});
-    check("   aaaa  ", {"aa"}, std::vector<int>({0, 0}));
+    check("   aaaa  ", {"aa", "##aa"}, std::vector<int>({0, 1}));
 
     check("aaaa", {"aaaa"}, std::vector<int>({0}));
-    check("aaaa", {"aaaa", "aaa", "aa", "a"}, std::vector<int>({0}));
-    check("aaaa", {"aaa", "aaaa", "aa", "a"}, std::vector<int>({1}));
-    check("aaaa", {"aaa", "aa", "a"}, std::vector<int>({0, 2}));
-    check("aaaa", {"aa", "a"}, std::vector<int>({0, 0}));
+    check("aaaa", {"##aaaa"}, std::vector<int>({-1}));
+    check("aaaa", {"aaaa", "##aaaa", "##aaa", "##aa", "##a"}, std::vector<int>({0}));
+    check("aaaa", {"##aaa", "aaaa", "##aa", "##a"}, std::vector<int>({1}));
+    check("aaaa", {"aaa", "##aa", "##a", "##aaa"}, std::vector<int>({0, 2}));
+    check("aaaa", {"aa", "a", "##aa"}, std::vector<int>({0, 2}));
+    check("aaaa", {"aa", "a", "##aaa"}, std::vector<int>({0, -1}));
+    check("aaaa", {"aa", "##a"}, std::vector<int>({0, 1, 1}));
 
-    check("abcdef", {"def", "abc"}, std::vector<int>({1, 0}));
-    check("abcdef", {"bcde", "ac", "def", "bc", "bcdef", "a"}, std::vector<int>({5, 4}));
-    check("abcdef", {"bcdd", "ac", "def", "bc", "bcdff", "a"}, std::vector<int>({5, 3, 2}));
+    check("abcdef", {"##def", "abc"}, std::vector<int>({1, 0}));
+    check("abcdef", {"##bcde", "##ac", "##def", "##bc", "##bcdef", "a", "##a"}, std::vector<int>({5, 4}));
+    check("abcdef", {"##bcdd", "##ac", "##def", "##bc", "##bcdff", "a"}, std::vector<int>({5, 3, 2}));
 
     check("djzhoyuhmcij",
-          {"d", "j", "z", "h", "o", "y", "u", "m", "c", "i"},
+          {"d", "##j", "##z", "##h", "##o", "##y", "##u", "##m", "##c", "##i", "##d"},
           std::vector<int>({0, 1, 2, 3, 4, 5, 6, 3, 7, 8, 9, 1}));
+}
+
+void testPunctuation() {
+    check("self-made", {"self", "made", "-", "##-", "##made"}, std::vector<int>({0, 2, 1}));
 }
 
 void testNonSplitted() {
     check("abc", {"a", "abd"}, std::vector<int>({0, -1}));
-    check("abcdef", {"bcde", "ac", "def", "bc", "bcdef"}, std::vector<int>({-1}));
+    check("abcdef", {"bcde", "ac", "def", "bc", "bcdef", "##a", "##b", "##c", "##d"}, std::vector<int>({-1}));
 }
 
 void testMaxMatch() {
     // NB, this considered as MaxMatch algorithm
-    check("abcdef", {"a", "bcdef", "ab", "c", "d", "e", "f"}, std::vector<int>({2, 3, 4, 5, 6}));
+    check("abcdef", {"a", "##bcdef", "ab", "##c", "##d", "##e", "##f"}, std::vector<int>({2, 3, 4, 5, 6}));
 
     check("abcdef", {"abcd", "def", "abc"}, std::vector<int>({0, -1}));
 
     check("djzhoyuhmcijprfwrssuhvgzw",
-          {"c",
+          {"##c",
            "d",
-           "f",
-           "g",
-           "h",
-           "hv",
-           "i",
-           "j",
-           "m",
-           "o",
-           "p",
-           "r",
-           "s",
-           "u",
-           "uh",
-           "w",
-           "y",
-           "z"});
+           "##d"
+           "##f",
+           "##g",
+           "##h",
+           "##hv",
+           "##i",
+           "##j",
+           "##m",
+           "##o",
+           "##p",
+           "##r",
+           "##s",
+           "##u",
+           "##uh",
+           "##w",
+           "##y",
+           "##z"});
 }
 
 void testUtf8() {
     check("привет мир", {"привет", "мир"}, std::vector<int>({0, 1}));
-    check("привет мир", {"при", "вет", "мир"}, std::vector<int>({0, 1, 2}));
+    check("привет мир", {"при", "##вет", "мир"}, std::vector<int>({0, 1, 2}));
     check("токенизация это круто",
-          {"ток", "крут", "это", "за", "ция"},
+          {"ток", "крут", "это", "##за", "##ция", "ция"},
           std::vector<int>({0, -1, 2, 1, -1}));
+    check("токенизация это круто",
+          {"ток", "крут", "это", "##за", "##ени", "##о", "##ция", "ция"},
+          std::vector<int>({0, 4, 3, 6, 2, 1, 5}));
 }
 
 void testRandomSplit(size_t text_len_from,
@@ -249,38 +230,7 @@ void testRandomSplit(size_t text_len_from,
                     split.erase(split.begin());
                 }
 
-                check(sample, split, verbose);
-            }
-        }
-    }
-}
-
-void testRandomConcat(size_t text_len_from,
-                      size_t text_len_to,
-                      size_t text_len_step,
-                      size_t parts_from,
-                      size_t parts_to,
-                      size_t max_part_len,
-                      bool positive,
-                      bool verbose = false) {
-    std::mt19937 rnd(17);
-
-    for (size_t text_len = text_len_from; text_len <= text_len_to; text_len += text_len_step) {
-        for (size_t parts = std::min(text_len, parts_from); parts <= std::min(text_len, parts_to);
-             parts++) {
-            if (verbose) {
-                std::cout << "running testRandomConcat, text_len " << text_len << ", vocab_size "
-                          << parts << std::endl;
-            }
-
-            for (int i = 0; i < 3; i++) {
-                std::vector<std::string> string_set = randomStringSet(rnd, parts, max_part_len);
-                std::string sample = randomStringFromSet(rnd, text_len, string_set);
-                if (!positive) {
-                    string_set.erase(string_set.begin());
-                }
-
-                check(sample, string_set, verbose);
+                check(sample, std::move(split));
             }
         }
     }
@@ -290,6 +240,7 @@ int main() {
     std::cout << "running small unit tests." << std::endl;
     testSimple();
     testNonSplitted();
+    testPunctuation();
     testMaxMatch();
     testUtf8();
 
@@ -303,26 +254,11 @@ int main() {
                     kWordPieceVocabSize,
                     true,
                     true);
-
-    std::cout << "running stress tests (concat)." << std::endl;
-    testRandomConcat(10, 300, 5, 2, 100, 10, true);
-    testRandomConcat(10, 300, 5, 2, 100, 10, false);
-    testRandomConcat(100'000,
-                     1'000'000,
-                     400'000,
-                     kWordPieceVocabSize,
-                     kWordPieceVocabSize,
-                     18,
-                     true,
-                     true);
-
-    std::cout << "running stress tests (concat, multithreading)." << std::endl;
-    testRandomConcat(10'000'000,
+    testRandomSplit(10'000'000,
                      10'000'000,
                      200'000,
                      kWordPieceVocabSize,
                      kWordPieceVocabSize,
-                     18,
                      true,
                      true);
 
