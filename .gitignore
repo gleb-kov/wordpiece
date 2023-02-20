@@ -1,0 +1,9 @@
+cmake-build-debug/
+cmake-build-release/
+build/
+venv/
+.idea/
+.vscode/
+data/
+.DS_store
+*result_*.txt*
