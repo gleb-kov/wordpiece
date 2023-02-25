@@ -65,13 +65,11 @@ struct VectorSegment {
         return true;
     }
 
-    uint64_t hash() const {
-        return hash_;
-    }
+    uint64_t hash() const { return hash_; }
 };
 
 class VectorSegmentBuilder {
-private:
+  private:
     constexpr static uint64_t MOD = 2032191299;
     constexpr static uint64_t P = 726328703;
 
@@ -79,7 +77,7 @@ private:
     const uint32_t *end_;
     std::vector<uint64_t> prefix_hash_;
 
-public:
+  public:
     VectorSegmentBuilder(const std::vector<uint32_t> &segment)
         : VectorSegmentBuilder(segment.data(), segment.data() + segment.size()) {}
 
@@ -92,21 +90,13 @@ public:
         }
     }
 
-    VectorSegment finish() const {
-        return VectorSegment(begin_, end_, hash());
-    }
+    VectorSegment finish() const { return VectorSegment(begin_, end_, hash()); }
 
-    size_t size() const {
-        return prefix_hash_.size();
-    }
+    size_t size() const { return prefix_hash_.size(); }
 
-    bool empty() const {
-        return prefix_hash_.empty();
-    }
+    bool empty() const { return prefix_hash_.empty(); }
 
-    uint64_t hash() const {
-        return prefix_hash_.empty() ? 0 : prefix_hash_.back();
-    }
+    uint64_t hash() const { return prefix_hash_.empty() ? 0 : prefix_hash_.back(); }
 
     void pop_back() noexcept {
         if (!prefix_hash_.empty()) {
