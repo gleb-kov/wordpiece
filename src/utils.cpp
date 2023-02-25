@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstring>
 #include <fstream>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -78,10 +79,29 @@ std::vector<uint32_t> parseText(const char *text, size_t size, ThreadPool &threa
 }
 
 WordPieceToken::WordPieceToken(const std::string &encoded_word)
- : is_prefix(true), word(vkcom::decode_utf8(encoded_word)) {
+ : is_prefix(true), is_special(false), is_malformed(false), word(vkcom::decode_utf8(encoded_word)) {
   if (isSuffixVocab(word)) {
     is_prefix = false;
     word.erase(word.begin(), word.begin() + 2);
+  } else if (isSpecialToken(word)) {
+    is_special = true;
+  }
+
+  bool all_punctuation = true;
+  for (uint32_t code_point : word) {
+    if (code_point == vkcom::INVALID_UNICODE) {
+      is_malformed = true;
+    }
+    if (!vkcom::is_punctuation(code_point) && !vkcom::is_space(code_point)) {
+      all_punctuation = false;
+    }
+  }
+  if (word.empty()) {
+    throw std::runtime_error("Vocab word is empty");
+  }
+  if (is_malformed || (all_punctuation && word.size() > 1)) {
+    is_malformed = true;
+    std::cerr << "Vocab word is malformed: " << encoded_word << std::endl;
   }
 }
 
@@ -120,9 +140,9 @@ bool isSuffixVocab(const std::vector<uint32_t> &word) {
   return word.size() >= 2 && word[0] == vkcom::SHARP_SIGN && word[1] == vkcom::SHARP_SIGN;
 }
 
-bool isSuffixVocab(const uint32_t *begin, const uint32_t *end) {
-  return begin != end && begin + 1 != end && *begin == vkcom::SHARP_SIGN
-      && *(begin + 1) == vkcom::SHARP_SIGN;
+bool isSpecialToken(const std::vector<uint32_t> &word) {
+  return word.size() > 2 && word[0] == static_cast<uint32_t>('[')
+      && word.back() == static_cast<uint32_t>(']');
 }
 
 } // namespace utils

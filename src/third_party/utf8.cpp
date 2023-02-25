@@ -1,4 +1,5 @@
 // Copyright (c) 2019 VK.com
+// Modified 2023 Gleb Koveshnikov
 
 #include "utf8.hpp"
 
@@ -7,11 +8,25 @@
 namespace vkcom {
 
 bool is_space(uint32_t ch) {
-    return (ch < 256 && std::isspace(static_cast<int>(ch))) || (ch == SPACE_TOKEN);
+    return (ch < 256 && std::isspace(static_cast<unsigned char>(ch))) || (ch == SPACE_TOKEN);
 }
 
 bool is_punctuation(uint32_t ch) {
-    return std::ispunct(static_cast<int>(ch)) || (8208 <= ch && ch <= 8213); // hyphen and dash
+    return (ch < 256 && std::ispunct(static_cast<unsigned char>(ch))) || ch == 183 || ch == 171 || ch == 187 || ch == 8249 || ch == 8250 || (8208 <= ch && ch <= 8248);
+}
+
+bool is_chinese(uint32_t ch) {
+    if ((ch >= 0x4E00 && ch <= 0x9FFF) || (ch >= 0x3400 && ch <= 0x4DBF) ||
+        (ch >= 0x20000 && ch <= 0x2A6DF) || (ch >= 0x2A700 && ch <= 0x2B73F) ||
+        (ch >= 0x2B740 && ch <= 0x2B81F) || (ch >= 0x2B820 && ch <= 0x2CEAF) ||
+        (ch >= 0xF900 && ch <= 0xFAFF) || (ch >= 0x2F800 && ch <= 0x2FA1F)) {
+        return true;
+    }
+    return false;
+}
+
+bool is_spacing_char(uint32_t ch) {
+    return is_space(ch) || is_punctuation(ch) || is_chinese(ch);
 }
 
 bool check_byte(char x) { return (static_cast<uint8_t>(x) & 0xc0u) == 0x80u; }

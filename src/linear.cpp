@@ -120,7 +120,7 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
 
 #if defined(_OPENMP)
 #pragma message "libsais compiled with openmp"
-  Count threads_count = total_length > 10 '000' 000 ? 0 : 1;
+  Count threads_count = total_length > 10'000'000 ? 0 : 1;
   saca_rc = libsais_int_omp(S,
                             suf,
                             static_cast<Count>(total_length),
@@ -176,7 +176,7 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
          const size_t index = right_side ? total_length - 1 - i : i;
          if (who[index] != kNoMatchedSuffix) {
            const auto &token = vocab.tokens[static_cast<size_t>(who[index])];
-           if (token.is_prefix == is_prefix_predicate) {
+           if (token.is_prefix == is_prefix_predicate && !token.is_malformed && !token.is_special) {
              Count len = static_cast<Count>(token.word.size());
              st.emplace_back(who[index], len);
            }
@@ -212,58 +212,66 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
     }
   }
 
-  const auto match_word_piece = [total_length,
-                                 unk_token_id = vocab.unk_token_id,
-                                 &text,
-                                 &vocab,
-                                 &suf_array_index,
-                                 &best_left_prefix,
-                                 &best_left_suffix,
-                                 &best_right_prefix,
-                                 &best_right_suffix](size_t match_index, size_t end) {
-    const size_t vocab_length = total_length - text.size();
-    std::vector<int> token_ids;
-    token_ids.reserve((end - match_index) * vocab.tokens.size() / vocab_length);
-
-    while (match_index != end && vkcom::is_space(text[match_index])) {
-      ++match_index;
-    }
-
-    while (match_index < end) {
-      const size_t left_sa_id = static_cast<size_t>(suf_array_index[match_index]);
-      const size_t right_sa_id = total_length - 1 - left_sa_id;
-      const uint32_t prev_char = match_index == 0 ? vkcom::SPACE_TOKEN : text[match_index - 1];
-      const bool is_word_prefix = vkcom::is_space(prev_char)
-                               || vkcom::is_punctuation(text[match_index])
-                               || vkcom::is_punctuation(prev_char);
-      const int x = is_word_prefix ? best_left_prefix[left_sa_id] : best_left_suffix[left_sa_id];
-      const int y
-       = is_word_prefix ? best_right_prefix[right_sa_id] : best_right_suffix[right_sa_id];
-
-      if (x != kNoMatchedSuffix || y != kNoMatchedSuffix) {
-        int token_id;
-        if (x != kNoMatchedSuffix && y != kNoMatchedSuffix) {
-          token_id = vocab.tokens[static_cast<size_t>(x)].word.size()
-                     > vocab.tokens[static_cast<size_t>(y)].word.size()
-                    ? x
-                    : y;
-        } else {
-          token_id = std::max(x, y);
-        }
-        token_ids.push_back(token_id);
-        match_index += vocab.tokens[static_cast<size_t>(token_id)].word.size();
-      } else {
-        token_ids.push_back(unk_token_id);
-        while (match_index != end && !vkcom::is_space(text[match_index])) {
-          ++match_index;
-        }
-      }
-      while (match_index != end && vkcom::is_space(text[match_index])) {
-        ++match_index;
-      }
-    }
-    return token_ids;
+  const auto is_word_prefix = [&text](size_t index) {
+    // std::cout << index << ' ' << vkcom::is_spacing_char(text[index]) << std::endl;
+    return index == 0 || vkcom::is_spacing_char(text[index])
+        || vkcom::is_spacing_char(text[index - 1]);
   };
+
+  const auto match_word_piece
+   = [&, unk_token_id = vocab.unk_token_id](size_t match_index, size_t end) {
+       const size_t vocab_length = total_length - text.size();
+       std::vector<int> token_ids;
+       token_ids.reserve((end - match_index) * vocab.tokens.size() / vocab_length);
+
+       while (match_index != end && vkcom::is_space(text[match_index])) {
+         ++match_index;
+       }
+
+       size_t tokens_since_prefix = 0;
+
+       while (match_index < end) {
+         const size_t left_sa_id = static_cast<size_t>(suf_array_index[match_index]);
+         const size_t right_sa_id = total_length - 1 - left_sa_id;
+         const bool prefix = is_word_prefix(match_index);
+         const int x = prefix ? best_left_prefix[left_sa_id] : best_left_suffix[left_sa_id];
+         const int y = prefix ? best_right_prefix[right_sa_id] : best_right_suffix[right_sa_id];
+
+         if (x != kNoMatchedSuffix || y != kNoMatchedSuffix) {
+           int token_id;
+           if (x != kNoMatchedSuffix && y != kNoMatchedSuffix) {
+             token_id = vocab.tokens[static_cast<size_t>(x)].word.size()
+                        > vocab.tokens[static_cast<size_t>(y)].word.size()
+                       ? x
+                       : y;
+           } else {
+             token_id = std::max(x, y);
+           }
+           ++tokens_since_prefix;
+           token_ids.push_back(token_id);
+           match_index += vocab.tokens[static_cast<size_t>(token_id)].word.size();
+
+           if (match_index != end && is_word_prefix(match_index)) {
+             tokens_since_prefix = 0;
+           }
+         } else {
+           while (tokens_since_prefix > 0) {
+             token_ids.pop_back();
+             --tokens_since_prefix;
+           }
+           token_ids.push_back(unk_token_id);
+           ++match_index;
+           while (match_index != end && !is_word_prefix(match_index)) {
+             ++match_index;
+           }
+         }
+         while (match_index != end && vkcom::is_space(text[match_index])) {
+           ++match_index;
+         }
+       }
+
+       return token_ids;
+     };
 
   std::vector<int> token_ids;
   {

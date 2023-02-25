@@ -6,10 +6,10 @@ import os
 from pathlib import Path
 from time import time
 
-import keras_nlp
-import tensorflow
+# import keras_nlp
+# import tensorflow
 from tabulate import tabulate
-from tensorflow_text import BertTokenizer as TensorflowBertTokenizer
+# from tensorflow_text import BertTokenizer as TensorflowBertTokenizer
 from tokenizers import BertWordPieceTokenizer as HuggingFaceBertTokenizer
 from torchtext.transforms import BERTTokenizer as TorchBertTokenizer
 
@@ -21,7 +21,7 @@ LINEAR = 'linear'
 TENSORFLOW = 'tensorflow'
 TORCH = 'torch'
 
-ALGORITHMS = [FAST, HUGGING_FACE, KERAS, LINEAR, TENSORFLOW, TORCH]
+ALGORITHMS = [FAST, HUGGING_FACE, LINEAR, TORCH]
 LOWER_CASE = False
 
 

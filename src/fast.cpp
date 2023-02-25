@@ -24,6 +24,9 @@ static std::vector<int> fastWordPieceImpl(const std::vector<uint32_t> &text,
   size_t max_len = 0;
   for (size_t i = 0; i < vocab.tokens.size(); i++) {
     const auto &token = vocab.tokens[i];
+    if (token.is_special || token.is_malformed) {
+      continue;
+    }
     max_len = std::max(max_len, token.word.size());
     vkcom::VectorSegmentBuilder segment(token.word);
     WordMap *word_to_id = token.is_prefix ? &prefix_to_id : &suffix_to_id;
@@ -31,50 +34,68 @@ static std::vector<int> fastWordPieceImpl(const std::vector<uint32_t> &text,
   }
   max_len = std::min(max_len, text.size());
 
-  const auto worker
-   = [unk_token_id = vocab.unk_token_id, max_len, &text, &prefix_to_id, &suffix_to_id](size_t begin,
-                                                                                       size_t end) {
-       std::vector<int> token_ids;
-       token_ids.reserve((end - begin) / max_len + 1);
+  const auto is_word_prefix = [&text](size_t index) {
+    return index == 0 || vkcom::is_spacing_char(text[index])
+        || vkcom::is_spacing_char(text[index - 1]);
+  };
 
-       while (begin != end && vkcom::is_space(text[begin])) {
-         ++begin;
-       }
+  const auto worker = [&, unk_token_id = vocab.unk_token_id](size_t begin, size_t end) {
+    std::vector<int> token_ids;
+    token_ids.reserve((end - begin) / max_len + 1);
 
-       while (begin != end) {
-         const size_t len = std::min(max_len, end - begin);
-         const uint32_t *segment_begin = text.data() + static_cast<int64_t>(begin);
-         const uint32_t *segment_end = segment_begin + static_cast<int64_t>(len);
-         const uint32_t prev_char = begin == 0 ? vkcom::SPACE_TOKEN : *(segment_begin - 1);
-         const bool is_word_prefix = vkcom::is_space(prev_char)
-                                  || vkcom::is_punctuation(*segment_begin)
-                                  || vkcom::is_punctuation(prev_char);
-         const WordMap *word_to_id = is_word_prefix ? &prefix_to_id : &suffix_to_id;
+    while (begin != end && vkcom::is_space(text[begin])) {
+      ++begin;
+    }
 
-         vkcom::VectorSegmentBuilder segment(segment_begin, segment_end);
-         while (!segment.empty()) {
-           auto it = word_to_id->find(segment.finish());
-           if (it != word_to_id->end()) {
-             token_ids.push_back(it->second);
-             begin += segment.size();
-             break;
-           } else {
-             segment.pop_back();
-           }
-         }
-         if (segment.empty()) {
-           token_ids.push_back(unk_token_id);
-           while (begin != end && !vkcom::is_space(text[begin])) {
-             ++begin;
-           }
-         }
-         while (begin != end && vkcom::is_space(text[begin])) {
-           ++begin;
-         }
-       }
+    size_t tokens_since_prefix = 0;
 
-       return token_ids;
-     };
+    while (begin != end) {
+      size_t word_len = 1;
+      if (!vkcom::is_punctuation(text[begin])) {
+        while (word_len < std::min(max_len, end - begin)
+               && !vkcom::is_spacing_char(text[begin + word_len])) {
+          ++word_len;
+        }
+      }
+
+      const uint32_t *segment_begin = text.data() + static_cast<int64_t>(begin);
+      const uint32_t *segment_end = segment_begin + static_cast<int64_t>(word_len);
+      const WordMap *word_to_id = is_word_prefix(begin) ? &prefix_to_id : &suffix_to_id;
+
+      vkcom::VectorSegmentBuilder segment(segment_begin, segment_end);
+      while (!segment.empty()) {
+        auto it = word_to_id->find(segment.finish());
+        if (it != word_to_id->end()) {
+          ++tokens_since_prefix;
+          token_ids.push_back(it->second);
+          begin += segment.size();
+          break;
+        } else {
+          segment.pop_back();
+        }
+      }
+
+      if (segment.empty()) {
+        while (tokens_since_prefix > 0) {
+          token_ids.pop_back();
+          --tokens_since_prefix;
+        }
+        token_ids.push_back(unk_token_id);
+        begin += word_len;
+        while (begin != end && !is_word_prefix(begin)) {
+          ++begin;
+        }
+      } else if (begin != end && is_word_prefix(begin)) {
+        tokens_since_prefix = 0;
+      }
+
+      while (begin != end && vkcom::is_space(text[begin])) {
+        ++begin;
+      }
+    }
+
+    return token_ids;
+  };
 
   static constexpr size_t kWorkBatch = 1'000'000;
   std::vector<int> token_ids;

@@ -21,6 +21,8 @@ struct WordPieceToken {
   explicit WordPieceToken(const std::string &encoded_word);
 
   bool is_prefix;
+  bool is_special;
+  bool is_malformed;
   std::vector<uint32_t> word;
 };
 
@@ -37,6 +39,6 @@ WordPieceVocabulary readVocabFromFile(const std::string &file);
 
 bool isSuffixVocab(const std::vector<uint32_t> &word);
 
-bool isSuffixVocab(const uint32_t *begin, const uint32_t *end);
+bool isSpecialToken(const std::vector<uint32_t> &word);
 
 } // namespace utils

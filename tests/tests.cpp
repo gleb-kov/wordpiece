@@ -136,16 +136,18 @@ std::vector<std::string> randomSplit(const std::string &s, std::mt19937 &rnd, si
 
 void testSimple() {
   check("aaaa", {"aaaa", "aaa", "aa", "a"});
-  check("abcdef", {"bcde", "ac", "def", "bc", "bcdef", "a"});
+  check("abcdef", {"bcde", "ac", "def", "bc", "bcdef", "a"}, std::vector<int>({kUnkTokenId}));
+  check("abcdef", {"bcde", "ac", "def", "bc", "##bcdef", "a"}, std::vector<int>({5, 4}));
   check("   aaaa  ", {"aa", "##aa"}, std::vector<int>({0, 1}));
+  check("   aaaa  ", {"aa"}, std::vector<int>({kUnkTokenId}));
 
   check("aaaa", {"aaaa"}, std::vector<int>({0}));
-  check("aaaa", {"##aaaa"}, std::vector<int>({-1}));
+  check("aaaa", {"##aaaa"}, std::vector<int>({kUnkTokenId}));
   check("aaaa", {"aaaa", "##aaaa", "##aaa", "##aa", "##a"}, std::vector<int>({0}));
   check("aaaa", {"##aaa", "aaaa", "##aa", "##a"}, std::vector<int>({1}));
   check("aaaa", {"aaa", "##aa", "##a", "##aaa"}, std::vector<int>({0, 2}));
   check("aaaa", {"aa", "a", "##aa"}, std::vector<int>({0, 2}));
-  check("aaaa", {"aa", "a", "##aaa"}, std::vector<int>({0, -1}));
+  check("aaaa", {"aa", "a", "##aaa"}, std::vector<int>({kUnkTokenId}));
   check("aaaa", {"aa", "##a"}, std::vector<int>({0, 1, 1}));
 
   check("abcdef", {"##def", "abc"}, std::vector<int>({1, 0}));
@@ -161,13 +163,16 @@ void testSimple() {
 
 void testPunctuation() {
   check("self-made", {"self", "made", "-", "##-", "##made"}, std::vector<int>({0, 2, 1}));
+  check("self, made", {"self", "made", ",", "##,", "##made"}, std::vector<int>({0, 2, 1}));
+  check("self  , made", {"self", "made", ",", "##,", "##made"}, std::vector<int>({0, 2, 1}));
 }
 
 void testNonSplitted() {
-  check("abc", {"a", "abd"}, std::vector<int>({0, -1}));
+  check("abc", {"a", "abd"}, std::vector<int>({kUnkTokenId}));
+  check("abc a abc abd", {"a", "abd"}, std::vector<int>({kUnkTokenId, 0, kUnkTokenId, 1}));
   check("abcdef",
         {"bcde", "ac", "def", "bc", "bcdef", "##a", "##b", "##c", "##d"},
-        std::vector<int>({-1}));
+        std::vector<int>({kUnkTokenId}));
 }
 
 void testMaxMatch() {
@@ -176,7 +181,7 @@ void testMaxMatch() {
         {"a", "##bcdef", "ab", "##c", "##d", "##e", "##f"},
         std::vector<int>({2, 3, 4, 5, 6}));
 
-  check("abcdef", {"abcd", "def", "abc"}, std::vector<int>({0, -1}));
+  check("abcdef abc abcd", {"abcd", "def", "abc"}, std::vector<int>({kUnkTokenId, 2, 0}));
 
   check("djzhoyuhmcijprfwrssuhvgzw",
         {"##c",
@@ -205,7 +210,7 @@ void testUtf8() {
   check("привет мир", {"при", "##вет", "мир"}, std::vector<int>({0, 1, 2}));
   check("токенизация это круто",
         {"ток", "крут", "это", "##за", "##ция", "ция"},
-        std::vector<int>({0, -1, 2, 1, -1}));
+        std::vector<int>({kUnkTokenId, 2, kUnkTokenId}));
   check("токенизация это круто",
         {"ток", "крут", "это", "##за", "##ени", "##о", "##ция", "ция"},
         std::vector<int>({0, 4, 3, 6, 2, 1, 5}));

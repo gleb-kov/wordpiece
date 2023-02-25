@@ -9,7 +9,7 @@
 
 namespace vkcom {
 
-constexpr uint32_t INVALID_UNICODE = 0x0fffffff;
+constexpr uint32_t INVALID_UNICODE = 0x110000;
 
 constexpr uint32_t SPACE_TOKEN = 9601;
 
@@ -18,6 +18,10 @@ constexpr uint32_t SHARP_SIGN = static_cast<uint32_t>('#');
 bool is_space(uint32_t ch);
 
 bool is_punctuation(uint32_t ch);
+
+bool is_chinese_char(uint32_t ch);
+
+bool is_spacing_char(uint32_t ch);
 
 bool check_byte(char x);
 

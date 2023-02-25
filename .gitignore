@@ -6,4 +6,6 @@ venv/
 .vscode/
 data/
 .DS_store
+*clang*
 *result_*.txt*
+.diff_searcher.py
