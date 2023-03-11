@@ -6,10 +6,10 @@ import os
 from pathlib import Path
 from time import time
 
-# import keras_nlp
-# import tensorflow
+import keras_nlp
+import tensorflow
 from tabulate import tabulate
-# from tensorflow_text import BertTokenizer as TensorflowBertTokenizer
+from tensorflow_text import BertTokenizer as TensorflowBertTokenizer
 from tokenizers import BertWordPieceTokenizer as HuggingFaceBertTokenizer
 from torchtext.transforms import BERTTokenizer as TorchBertTokenizer
 
@@ -21,7 +21,7 @@ LINEAR = 'linear'
 TENSORFLOW = 'tensorflow'
 TORCH = 'torch'
 
-ALGORITHMS = [FAST, HUGGING_FACE, LINEAR, TORCH]
+ALGORITHMS = [FAST, HUGGING_FACE, KERAS, LINEAR, TENSORFLOW, TORCH]
 LOWER_CASE = False
 
 
@@ -50,7 +50,7 @@ def run_tensorflow(text_file, vocab_file, n_threads, out_file):
         num_oov_buckets=1
     )
     tokenizer = TensorflowBertTokenizer(lookup_table, token_out_type=tensorflow.int64, lower_case=LOWER_CASE)
-    ids = tokenizer.tokenize(text).merge_dims(1, -1)
+    ids = tokenizer.tokenize(text).numpy().tolist()
     assert len(ids) > 0
     collect_to_file(out_file, ids)
     return len(ids)
@@ -80,7 +80,7 @@ def run_keras(text_file, vocab_file, n_threads, out_file):
     with open(text_file, 'r') as f:
         text = f.read()
     tokenizer = keras_nlp.tokenizers.WordPieceTokenizer(vocabulary=vocab_file, lowercase=LOWER_CASE)
-    ids = tokenizer.tokenize(text).merge_dims(1, -1)
+    ids = tokenizer.tokenize(text).numpy().tolist()
     assert len(ids) > 0
     collect_to_file(out_file, ids)
     return len(ids)
@@ -262,3 +262,4 @@ def main(args):
 if __name__ == "__main__":
     args = parse_args()
     main(args)
+
