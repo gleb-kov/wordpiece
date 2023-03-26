@@ -95,6 +95,38 @@ bool starts_with_space(const char *begin, int64_t size) {
     return is_space(symbol);
 }
 
+void utf8_to_chars(uint32_t x, std::back_insert_iterator<std::string> it) {
+  assert(check_codepoint(x));
+
+  if (x <= 0x7f) {
+    *(it++) = static_cast<char>(x);
+    return;
+  }
+  if (x <= 0x7ff) {
+    *(it++) = static_cast<char>(0xc0u | (x >> 6u));
+    *(it++) = static_cast<char>(0x80u | (x & 0x3fu));
+    return;
+  }
+  if (x <= 0xffff) {
+    *(it++) = static_cast<char>(0xe0u | (x >> 12u));
+    *(it++) = static_cast<char>(0x80u | ((x >> 6u) & 0x3fu));
+    *(it++) = static_cast<char>(0x80u | (x & 0x3fu));
+    return;
+  }
+  *(it++) = static_cast<char>(0xf0u | (x >> 18u));
+  *(it++) = static_cast<char>(0x80u | ((x >> 12u) & 0x3fu));
+  *(it++) = static_cast<char>(0x80u | ((x >> 6u) & 0x3fu));
+  *(it++) = static_cast<char>(0x80u | (x & 0x3fu));
+}
+
+std::string encode_utf8(const std::vector<uint32_t> &text) {
+    std::string utf8_text;
+    for (const uint32_t c : text) {
+        utf8_to_chars(c, std::back_inserter(utf8_text));
+    }
+    return utf8_text;
+}
+
 std::vector<uint32_t> decode_utf8(const char *begin, const char *end) {
     std::vector<uint32_t> decoded_text;
     decoded_text.reserve(static_cast<unsigned long>(end - begin) / 4 + 4);

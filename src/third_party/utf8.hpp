@@ -35,6 +35,10 @@ uint32_t chars_to_utf8(const char *begin, int64_t size, uint64_t *utf8_len);
 
 bool starts_with_space(const char *begin, int64_t size);
 
+void utf8_to_chars(uint32_t x, std::back_insert_iterator<std::string> it);
+
+std::string encode_utf8(const std::vector<uint32_t> &utext);
+
 std::vector<uint32_t> decode_utf8(const char *begin, const char *end);
 
 std::vector<uint32_t> decode_utf8(const std::string &utf8_text);

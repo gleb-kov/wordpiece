@@ -69,8 +69,8 @@ calcLcp(const Count *str, const Count *suf_a, const std::vector<Count> &suf_arra
   return lcp;
 }
 
-static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
-                                            const utils::WordPieceVocabulary &vocab) {
+static std::vector<int> encodeLinearWordPieceImpl(const std::vector<uint32_t> &text,
+                                                  const utils::WordPieceVocabulary &vocab) {
   using Count = int32_t;
   static_assert(std::is_same_v<Count, int32_t>, "64-bit unsupported"); // TODO
 
@@ -319,28 +319,28 @@ static std::vector<int> linearWordPieceImpl(const std::vector<uint32_t> &text,
 }
 
 static std::vector<int>
-linearWordPiece(const char *text, size_t size, const utils::WordPieceVocabulary &vocab) {
+encodeLinearWordPiece(const char *text, size_t size, const utils::WordPieceVocabulary &vocab) {
   if (size == 0) {
     return {};
   }
   const std::vector<uint32_t> text_utf8 = utils::parseText(text, size, utils::globalThreadPool());
-  return linearWordPieceImpl(text_utf8, vocab);
+  return encodeLinearWordPieceImpl(text_utf8, vocab);
 }
 
-namespace word_piece {
+namespace word_piece::linear {
 
-std::vector<int> linear(const std::string &text, const std::vector<std::string> &vocab) {
+std::vector<int> encode(const std::string &text, const std::vector<std::string> &vocab) {
   const utils::WordPieceVocabulary vocab_utf8 = utils::parseVocab(vocab);
-  return linearWordPiece(text.data(), text.size(), vocab_utf8);
+  return encodeLinearWordPiece(text.data(), text.size(), vocab_utf8);
 }
 
-std::vector<int> linear(const std::string &text_file, const std::string &vocab_file) {
+std::vector<int> encode(const std::string &text_file, const std::string &vocab_file) {
   const utils::WordPieceVocabulary vocab_utf8 = utils::readVocabFromFile(vocab_file);
   boost::iostreams::mapped_file mmap(text_file, boost::iostreams::mapped_file::readonly);
-  return linearWordPiece(mmap.const_data(), mmap.size(), vocab_utf8);
+  return encodeLinearWordPiece(mmap.const_data(), mmap.size(), vocab_utf8);
 }
 
-void linearExternal(const std::string &text_file,
+void encodeExternal(const std::string &text_file,
                     const std::string &vocab_file,
                     const std::string &out_file,
                     size_t memory_limit) {
@@ -364,7 +364,7 @@ void linearExternal(const std::string &text_file,
       batch = size;
     }
 
-    std::vector<int> ids = linearWordPiece(begin, batch, vocab_utf8);
+    std::vector<int> ids = encodeLinearWordPiece(begin, batch, vocab_utf8);
     for (int id : ids) {
       fout << id << ' ';
     }
@@ -373,4 +373,4 @@ void linearExternal(const std::string &text_file,
   }
 }
 
-} // namespace word_piece
+} // namespace word_piece::linear

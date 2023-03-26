@@ -35,13 +35,13 @@ int main(int argc, char *argv[]) {
   [[maybe_unused]] auto &thread_pool = utils::globalThreadPool(n_threads);
 
   if (mode == "fast") {
-    std::vector<int> ids = word_piece::fast(text_file, vocab_file);
+    std::vector<int> ids = word_piece::fast::encode(text_file, vocab_file);
     std::cout << "Total ids " << ids.size() << std::endl;
     if (out_file) {
       utils::writeToFile(*out_file, ids);
     }
   } else if (mode == "linear") {
-    std::vector<int> ids = word_piece::linear(text_file, vocab_file);
+    std::vector<int> ids = word_piece::linear::encode(text_file, vocab_file);
     std::cout << "Total ids " << ids.size() << std::endl;
     if (out_file) {
       utils::writeToFile(*out_file, ids);
@@ -50,12 +50,15 @@ int main(int argc, char *argv[]) {
     if (!memory_limit.has_value()) {
       throw std::runtime_error("For external mode provide out_file and memory_limit");
     }
-    word_piece::fastExternal(text_file, vocab_file, out_file.value(), memory_limit.value());
+    word_piece::fast::encodeExternal(text_file, vocab_file, out_file.value(), memory_limit.value());
   } else if (mode == "linear-external") {
     if (!memory_limit.has_value()) {
       throw std::runtime_error("For external mode provide out_file and memory_limit");
     }
-    word_piece::linearExternal(text_file, vocab_file, out_file.value(), memory_limit.value());
+    word_piece::linear::encodeExternal(text_file,
+                                       vocab_file,
+                                       out_file.value(),
+                                       memory_limit.value());
   } else {
     throw std::runtime_error("Unknown mode");
   }

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstring>
 #include <fstream>
+#include <iostream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -15,8 +16,8 @@
 #include "third_party/utf8.hpp"
 #include "utils.hpp"
 
-static std::vector<int> fastWordPieceImpl(const std::vector<uint32_t> &text,
-                                          const utils::WordPieceVocabulary &vocab) {
+static std::vector<int> encodeFastWordPieceImpl(const std::vector<uint32_t> &text,
+                                                const utils::WordPieceVocabulary &vocab) {
   using WordMap = std::unordered_map<vkcom::VectorSegment, int>;
   WordMap prefix_to_id; // no ## in word prefix
   WordMap suffix_to_id; // ## in word prefix
@@ -140,31 +141,55 @@ static std::vector<int> fastWordPieceImpl(const std::vector<uint32_t> &text,
 }
 
 static std::vector<int>
-fastWordPiece(const char *text, size_t size, const utils::WordPieceVocabulary &vocab) {
+encodeFastWordPiece(const char *text, size_t size, const utils::WordPieceVocabulary &vocab) {
   if (size == 0) {
     return {};
   }
   const std::vector<uint32_t> text_utf8 = utils::parseText(text, size, utils::globalThreadPool());
-  return fastWordPieceImpl(text_utf8, vocab);
+  return encodeFastWordPieceImpl(text_utf8, vocab);
 }
 
-namespace word_piece {
+namespace word_piece::fast {
 
-std::vector<int> fast(const std::string &text, const std::vector<std::string> &vocab) {
+std::vector<int> encode(const std::string &text, const std::vector<std::string> &vocab) {
   const utils::WordPieceVocabulary vocab_utf8 = utils::parseVocab(vocab);
-  return fastWordPiece(text.data(), text.size(), vocab_utf8);
+  return encodeFastWordPiece(text.data(), text.size(), vocab_utf8);
 }
 
-std::vector<int> fast(const std::string &text_file, const std::string &vocab_file) {
+std::vector<int> encode(const std::string &text_file, const std::string &vocab_file) {
   const utils::WordPieceVocabulary vocab_utf8 = utils::readVocabFromFile(vocab_file);
   boost::iostreams::mapped_file mmap(text_file, boost::iostreams::mapped_file::readonly);
-  return fastWordPiece(mmap.const_data(), mmap.size(), vocab_utf8);
+  return encodeFastWordPiece(mmap.const_data(), mmap.size(), vocab_utf8);
 }
 
-void fastExternal(const std::string &text_file,
-                  const std::string &vocab_file,
-                  const std::string &out_file,
-                  size_t memory_limit) {
+std::vector<std::string> decode(const std::string vocab_file, const std::vector<int> &ids) {
+  const utils::WordPieceVocabulary vocab_utf8 = utils::readVocabFromFile(vocab_file);
+  std::vector<std::string> result;
+  result.reserve(ids.size());
+
+  for (int id : ids) {
+    if (id < 0 || static_cast<size_t>(id) > vocab_utf8.tokens.size()) {
+      std::cerr << "no token " << id << std::endl;
+      continue;
+    }
+    const auto &token = vocab_utf8.tokens.at(static_cast<size_t>(id));
+    if (token.is_malformed) {
+      std::cerr << "trying to access malformed token" << std::endl;
+    } else if (token.is_prefix) {
+      result.push_back(vkcom::encode_utf8(token.word));
+    } else {
+      std::string encoded = "##" + vkcom::encode_utf8(token.word);
+      result.push_back(std::move(encoded));
+    }
+  }
+
+  return result;
+}
+
+void encodeExternal(const std::string &text_file,
+                    const std::string &vocab_file,
+                    const std::string &out_file,
+                    size_t memory_limit) {
   const utils::WordPieceVocabulary vocab_utf8 = utils::readVocabFromFile(vocab_file);
 
   const size_t maxTextBatch = memory_limit / 2;
@@ -185,7 +210,7 @@ void fastExternal(const std::string &text_file,
       batch = size;
     }
 
-    std::vector<int> ids = fastWordPiece(begin, batch, vocab_utf8);
+    std::vector<int> ids = encodeFastWordPiece(begin, batch, vocab_utf8);
     for (int id : ids) {
       fout << id << ' ';
     }
@@ -194,4 +219,4 @@ void fastExternal(const std::string &text_file,
   }
 }
 
-} // namespace word_piece
+} // namespace word_piece::fast

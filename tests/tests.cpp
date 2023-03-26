@@ -81,9 +81,9 @@ void check(const std::string &s, std::vector<std::string> vocab, const std::vect
   if (!verifyVocab(vocab)) {
     throw std::runtime_error("Vocab is malformed");
   }
-  std::vector<int> linear = word_piece::linear(s, vocab);
+  std::vector<int> linear = word_piece::linear::encode(s, vocab);
   assertEq(linear, expected, s, vocab);
-  std::vector<int> fast = word_piece::fast(s, vocab);
+  std::vector<int> fast = word_piece::fast::encode(s, vocab);
   assertEq(fast, expected, s, vocab);
 }
 
@@ -91,8 +91,8 @@ void check(const std::string &s, std::vector<std::string> vocab) {
   if (!verifyVocab(vocab)) {
     throw std::runtime_error("Vocab is malformed");
   }
-  std::vector<int> linear = word_piece::linear(s, vocab);
-  std::vector<int> fast = word_piece::fast(s, vocab);
+  std::vector<int> linear = word_piece::linear::encode(s, vocab);
+  std::vector<int> fast = word_piece::fast::encode(s, vocab);
   assertEq(linear, fast, s, vocab);
 }
 
